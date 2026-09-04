@@ -1,0 +1,176 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "org-cost-api.fullname" . }}
+  labels:
+    {{- include "org-cost-api.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "org-cost-api.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        {{- if and .Values.staticConfig.enabled (not .Values.existingConfigSecret) (not .Values.autoConfig.enabled) }}
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- end }}
+        {{- if .Values.autoConfig.enabled }}
+        checksum/autoconfig: {{ include (print $.Template.BasePath "/autoconfig-script.yaml") . | sha256sum }}
+        {{- end }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "org-cost-api.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "org-cost-api.serviceAccountName" . }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.autoConfig.enabled }}
+      initContainers:
+        - name: autoconfig
+          image: "{{ .Values.autoConfig.image.repository }}:{{ .Values.autoConfig.image.tag }}"
+          imagePullPolicy: {{ .Values.autoConfig.image.pullPolicy }}
+          command: ["/bin/bash", "/scripts/generate-config.sh"]
+          env:
+            # Explicit IRSA for init containers (EKS webhook often skips them)
+            - name: AWS_ROLE_ARN
+              value: {{ index .Values.serviceAccount.annotations "eks.amazonaws.com/role-arn" | quote }}
+            - name: AWS_WEB_IDENTITY_TOKEN_FILE
+              value: /var/run/secrets/eks.amazonaws.com/serviceaccount/token
+            - name: AWS_DEFAULT_REGION
+              value: {{ .Values.autoConfig.defaultRegion | quote }}
+            - name: OUTPUT_PATH
+              value: /config/config.yaml
+            - name: MEMBER_ROLE
+              value: {{ .Values.autoConfig.memberRoleName | quote }}
+            - name: PAYER_ACCOUNT_ID
+              value: {{ .Values.autoConfig.payerAccountId | quote }}
+            - name: CORS_ORIGIN
+              value: {{ .Values.autoConfig.corsOrigin | quote }}
+            - name: COST_LOOKBACK_DAYS
+              value: {{ .Values.autoConfig.costLookbackDays | quote }}
+            - name: ACCOUNT_NAME_PREFIX
+              value: {{ .Values.autoConfig.accountNamePrefix | quote }}
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: autoconfig-scripts
+              mountPath: /scripts
+              readOnly: true
+            - name: aws-iam-token
+              mountPath: /var/run/secrets/eks.amazonaws.com/serviceaccount
+              readOnly: true
+      {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            {{- if index .Values.serviceAccount.annotations "eks.amazonaws.com/role-arn" }}
+            - name: AWS_ROLE_ARN
+              value: {{ index .Values.serviceAccount.annotations "eks.amazonaws.com/role-arn" | quote }}
+            - name: AWS_WEB_IDENTITY_TOKEN_FILE
+              value: /var/run/secrets/eks.amazonaws.com/serviceaccount/token
+            {{- end }}
+            {{- range $key, $value := .Values.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+            {{- if or .Values.apiToken .Values.existingSecret }}
+            - name: ORG_COST_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default (printf "%s-token" (include "org-cost-api.fullname" .)) .Values.existingSecret }}
+                  key: {{ default "ORG_COST_API_TOKEN" .Values.existingSecretKey }}
+            {{- end }}
+          {{- with .Values.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: config
+              mountPath: /config
+              readOnly: true
+            {{- if index .Values.serviceAccount.annotations "eks.amazonaws.com/role-arn" }}
+            - name: aws-iam-token
+              mountPath: /var/run/secrets/eks.amazonaws.com/serviceaccount
+              readOnly: true
+            {{- end }}
+            {{- if .Values.persistence.enabled }}
+            - name: history
+              mountPath: {{ .Values.persistence.mountPath }}
+            {{- end }}
+      volumes:
+        {{- if index .Values.serviceAccount.annotations "eks.amazonaws.com/role-arn" }}
+        - name: aws-iam-token
+          projected:
+            defaultMode: 420
+            sources:
+              - serviceAccountToken:
+                  audience: sts.amazonaws.com
+                  expirationSeconds: 86400
+                  path: token
+        {{- end }}
+        - name: config
+          {{- if .Values.autoConfig.enabled }}
+          emptyDir: {}
+          {{- else if .Values.existingConfigSecret }}
+          secret:
+            secretName: {{ .Values.existingConfigSecret }}
+            items:
+              - key: config.yaml
+                path: config.yaml
+          {{- else }}
+          configMap:
+            name: {{ include "org-cost-api.configMapName" . }}
+          {{- end }}
+        {{- if .Values.autoConfig.enabled }}
+        - name: autoconfig-scripts
+          configMap:
+            name: {{ include "org-cost-api.fullname" . }}-autoconfig
+            defaultMode: 0755
+        {{- end }}
+        {{- if .Values.persistence.enabled }}
+        - name: history
+          persistentVolumeClaim:
+            claimName: {{ default (printf "%s-history" (include "org-cost-api.fullname" .)) .Values.persistence.existingClaim }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

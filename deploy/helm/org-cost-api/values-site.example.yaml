@@ -1,0 +1,52 @@
+# Example site overlay — copy and fill with your IDs.
+#   cp values-site.example.yaml values-site.yaml
+#   helm upgrade --install org-cost-api ./deploy/helm/org-cost-api \
+#     -n org-cost -f values-site.yaml
+# Do not commit real account IDs, ECR URLs, or internal hostnames to a public fork.
+
+image:
+  repository: YOUR_REGISTRY/org-cost-api
+  tag: latest
+
+serviceAccount:
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::111122223333:role/org-cost-api-irsa
+
+# Optional: pin to arm64 node pools
+# nodeSelector:
+#   kubernetes.io/arch: arm64
+# tolerations:
+#   - key: "kubernetes.io/arch"
+#     operator: "Equal"
+#     value: "arm64"
+#     effect: "NoSchedule"
+
+autoConfig:
+  enabled: true
+  payerAccountId: "111122223333"   # org management / payer
+  memberRoleName: OrgCostReadOnly
+  defaultRegion: eu-west-1
+  corsOrigin: "https://costs.internal.example.com"
+
+staticConfig:
+  enabled: false
+
+gateway:
+  enabled: true
+  name: your-gateway
+  namespace: gateway-system
+
+hostnames:
+  - costs.internal.example.com
+
+chat:
+  enabled: false
+  # enabled: true
+  # image:
+  #   repository: YOUR_REGISTRY/org-cost-chat
+  #   tag: latest
+  # llm:
+  #   provider: litellm
+  #   baseUrl: https://litellm.example.com/v1
+  #   model: gpt-4o-mini
+  #   apiKey: ""

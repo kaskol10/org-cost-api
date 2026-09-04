@@ -1,0 +1,180 @@
+# Default values for org-cost-api (generic — no site-specific IDs).
+# Override with a site file, e.g. -f values-site.example.yaml (copy → values-site.yaml)
+# See deploy/eks/README.md and docs/eks-operate.md.
+
+replicaCount: 1
+
+image:
+  repository: org-cost-api
+  tag: latest
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  # Must match IRSA trust sub: system:serviceaccount:NAMESPACE:org-cost-api
+  name: org-cost-api
+  annotations: {}
+    # eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT:role/org-cost-api-irsa
+
+podAnnotations: {}
+podLabels: {}
+
+# App image runs as uid 10001 — share emptyDir with autoconfig init
+podSecurityContext:
+  fsGroup: 10001
+  fsGroupChangePolicy: OnRootMismatch
+
+securityContext: {}
+
+service:
+  type: ClusterIP
+  port: 8080
+
+resources: {}
+  # limits:
+  #   cpu: 500m
+  #   memory: 512Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 256Mi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Application environment (see docker-compose.prod.yml)
+env:
+  CONFIG_PATH: /config/config.yaml
+  STATIC_DIR: /app/static
+  HISTORY_DIR: /data/history
+
+# Optional API token — creates a Secret when set
+apiToken: ""
+# Or reference an existing Secret:
+# existingSecret: org-cost-api-token
+# existingSecretKey: ORG_COST_API_TOKEN
+
+livenessProbe:
+  httpGet:
+    path: /api/health
+    port: http
+  initialDelaySeconds: 10
+  periodSeconds: 30
+  timeoutSeconds: 5
+
+readinessProbe:
+  httpGet:
+    path: /api/ready
+    port: http
+  initialDelaySeconds: 15
+  periodSeconds: 30
+  timeoutSeconds: 5
+
+persistence:
+  enabled: true
+  storageClass: ""
+  accessModes:
+    - ReadWriteOnce
+  size: 1Gi
+  mountPath: /data/history
+  existingClaim: ""
+
+# --- Config: auto-discover (IRSA) vs static -----------------------------------
+
+# autoConfig: init container assumes payer OrgCostReadOnly → ListAccounts → config.yaml
+# (Organizations APIs only work from the management account.)
+autoConfig:
+  enabled: false
+  payerAccountId: ""   # org management / payer account ID
+  memberRoleName: OrgCostReadOnly
+  defaultRegion: us-east-1
+  corsOrigin: "*"
+  costLookbackDays: 30
+  accountNamePrefix: ""
+  image:
+    # Multi-arch (arm64/amd64). Entrypoint is aws — Deployment overrides to bash.
+    repository: public.ecr.aws/aws-cli/aws-cli
+    tag: "2.17.46"
+    pullPolicy: IfNotPresent
+
+# staticConfig: used when autoConfig.enabled=false (or as a starting ConfigMap)
+staticConfig:
+  enabled: true
+  data: |
+    listen_addr: ":8080"
+    cors_origin: "*"
+    cost_lookback_days: 30
+    billing_profile: ""
+    accounts: []
+
+# Use an existing Secret instead of ConfigMap (key must be config.yaml)
+existingConfigSecret: ""
+
+# Optional post-install Job to also refresh a ConfigMap (not required when autoConfig is on)
+bootstrapJob:
+  enabled: false
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 86400
+
+# --- Gateway API (HTTPRoute only — no Ingress) --------------------------------
+
+gateway:
+  enabled: false
+  group: gateway.networking.k8s.io
+  kind: Gateway
+  name: ""
+  namespace: ""
+  # Optional listener section on the Gateway (e.g. https)
+  sectionName: ""
+  # gateway.networking.k8s.io/v1 HTTPRoute
+  apiVersion: gateway.networking.k8s.io/v1
+
+hostnames: []
+  # - costs.internal.example.com
+
+httpRoute:
+  annotations: {}
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+
+# --- Chat agent (org-cost-chat) + LLM -----------------------------------------
+# Separate Python service. Browser hits /v1/chat via Gateway; chat calls the
+# in-cluster API. UI must be rebuilt with VITE_CHAT_URL=<public chat base URL>.
+# See docs/eks-operate.md § Chat / LLM and docs/chat-setup.md.
+
+chat:
+  enabled: false
+  replicaCount: 1
+  # Envoy Gateway HTTPRoute timeouts for /v1/chat and /v1/suggestions (default EG is ~15s → 504)
+  gatewayTimeout: 300s
+  gatewayIdleTimeout: 300s
+  image:
+    # Build: docker build -t org-cost-chat -f mcp-server/Dockerfile mcp-server
+    repository: org-cost-chat
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8090
+  llm:
+    provider: litellm   # litellm | vllm | openai
+    baseUrl: ""         # e.g. https://litellm.example.com/v1 or http://vllm:8000/v1
+    model: ""           # e.g. gpt-4o-mini or hosted model id
+    # Leave empty for vLLM (chart sets LLM_API_KEY=EMPTY). Set for LiteLLM/OpenAI.
+    apiKey: ""
+  # Or reference an existing Secret for the LLM key:
+  # existingSecret: org-cost-llm
+  # existingSecretKey: LLM_API_KEY
+  extraEnv: {}
+  resources: {}
+  podAnnotations: {}
+  podLabels: {}
+  podSecurityContext: {}
+  securityContext: {}

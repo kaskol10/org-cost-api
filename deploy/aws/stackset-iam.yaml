@@ -1,0 +1,114 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Org-wide OrgCostReadOnly for org-cost-api. Deploy via StackSet from the org
+  management account. Trusts the IRSA role in the deploy account — create that
+  role first with deploy/aws/irsa-role.yaml (onboard-iam.sh does this automatically).
+
+Parameters:
+  DeployAccountId:
+    Type: String
+    Description: AWS account ID where EKS / IRSA runs (shared-services).
+    AllowedPattern: "^[0-9]{12}$"
+
+  PayerAccountId:
+    Type: String
+    Description: Organization management (payer) account ID.
+    AllowedPattern: "^[0-9]{12}$"
+
+  IrsaRoleName:
+    Type: String
+    Default: org-cost-api-irsa
+
+  RoleName:
+    Type: String
+    Default: OrgCostReadOnly
+
+  TrustVersion:
+    Type: String
+    Default: "3"
+    Description: Bump to force AssumeRolePolicyDocument refresh on stack instances.
+
+Conditions:
+  IsPayerAccount: !Equals [!Ref "AWS::AccountId", !Ref PayerAccountId]
+
+Resources:
+  OrgCostReadOnlyRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref RoleName
+      Description: !Sub "org-cost-api member read-only (trust v${TrustVersion})"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: TrustEksIrsa
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${DeployAccountId}:role/${IrsaRoleName}"
+            Action: sts:AssumeRole
+      Tags:
+        - Key: org-cost-api/trust-version
+          Value: !Ref TrustVersion
+      Policies:
+        - PolicyName: OrgCostReadOnly
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: CostExplorerRead
+                Effect: Allow
+                Action:
+                  - ce:GetCostAndUsage
+                  - ce:GetCostAndUsageWithResources
+                  - ce:GetDimensionValues
+                  - ce:GetTags
+                Resource: "*"
+              - Sid: EC2InventoryRead
+                Effect: Allow
+                Action:
+                  - ec2:DescribeVolumes
+                  - ec2:DescribeSnapshots
+                  - ec2:DescribeInstances
+                  - ec2:DescribeRegions
+                Resource: "*"
+              - Sid: CloudWatchMetricsRead
+                Effect: Allow
+                Action:
+                  - cloudwatch:GetMetricData
+                  - cloudwatch:ListMetrics
+                Resource: "*"
+              - Sid: STSIdentity
+                Effect: Allow
+                Action:
+                  - sts:GetCallerIdentity
+                Resource: "*"
+              - Sid: CURAthenaOptional
+                Effect: Allow
+                Action:
+                  - athena:StartQueryExecution
+                  - athena:GetQueryExecution
+                  - athena:GetQueryResults
+                  - glue:GetDatabase
+                  - glue:GetTable
+                  - glue:GetPartitions
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource: "*"
+              - !If
+                - IsPayerAccount
+                - Sid: OrganizationsListPayerOnly
+                  Effect: Allow
+                  Action:
+                    - organizations:ListAccounts
+                    - organizations:DescribeOrganization
+                  Resource: "*"
+                - !Ref AWS::NoValue
+
+Outputs:
+  OrgCostReadOnlyRoleArn:
+    Description: OrgCostReadOnly role ARN in this account.
+    Value: !Sub "arn:aws:iam::${AWS::AccountId}:role/${RoleName}"
+  OrgCostReadOnlyRoleName:
+    Description: OrgCostReadOnly IAM role name.
+    Value: !Ref RoleName
+  TrustedIrsaArn:
+    Description: IRSA role trusted by this account's OrgCostReadOnly.
+    Value: !Sub "arn:aws:iam::${DeployAccountId}:role/${IrsaRoleName}"

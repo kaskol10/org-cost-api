@@ -1,0 +1,11 @@
+{{- if and .Values.staticConfig.enabled (not .Values.existingConfigSecret) (not .Values.autoConfig.enabled) }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "org-cost-api.configMapName" . }}
+  labels:
+    {{- include "org-cost-api.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+{{- .Values.staticConfig.data | nindent 4 }}
+{{- end }}

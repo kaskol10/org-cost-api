@@ -1,0 +1,41 @@
+# Local config / site overlays (never commit real org data)
+config.yaml
+test-config.yaml
+values-site.yaml
+values-*.local.yaml
+.env
+.env.local
+
+# Go
+backend/server
+*.exe
+*.test
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/*.tsbuildinfo
+
+# Python MCP
+mcp-server/.venv/
+mcp-server/__pycache__/
+mcp-server/*.egg-info/
+mcp-server/dist/
+mcp-server/build/
+
+# Generated reports
+reports/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~
+
+# Caches / local AWS
+mcp-server/.pytest_cache/
+.aws/
+history/
+*.pem
+*.key

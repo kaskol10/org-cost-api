@@ -1,0 +1,25 @@
+# Remote MCP over HTTP/SSE — connects to a running Go API.
+#
+# Start the API first (demo or prod), then:
+#   docker compose -f docker-compose.mcp-http.yml up --build
+#
+# SSE endpoint: http://localhost:8000/sse
+# Streamable HTTP: set MCP_TRANSPORT=streamable-http (endpoint /mcp)
+#
+# For local stdio (Cursor/Hermes default), use org-cost-mcp directly — no compose needed.
+
+services:
+  mcp:
+    build:
+      context: ./mcp-server
+      dockerfile: Dockerfile.mcp
+    ports:
+      - "${MCP_PORT:-8000}:8000"
+    environment:
+      MCP_TRANSPORT: ${MCP_TRANSPORT:-sse}
+      MCP_HOST: 0.0.0.0
+      MCP_PORT: 8000
+      ORG_COST_API_URL: ${ORG_COST_API_URL:-http://host.docker.internal:8080}
+      ORG_COST_API_TOKEN: ${ORG_COST_API_TOKEN:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

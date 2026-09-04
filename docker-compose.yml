@@ -1,0 +1,18 @@
+services:
+  api:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./config.yaml:/config/config.yaml:ro
+      - org-cost-history:/data/history
+    environment:
+      CONFIG_PATH: /config/config.yaml
+      HISTORY_DIR: /data/history
+      ORG_COST_API_TOKEN: ${ORG_COST_API_TOKEN:-}
+    # Mount AWS credentials from the host when using profiles/SSO (optional).
+    # volumes:
+    #   - ${HOME}/.aws:/home/app/.aws:ro
+
+volumes:
+  org-cost-history:

@@ -1,0 +1,52 @@
+{{- if .Values.gateway.enabled }}
+apiVersion: {{ .Values.gateway.apiVersion }}
+kind: HTTPRoute
+metadata:
+  name: {{ include "org-cost-api.fullname" . }}
+  labels:
+    {{- include "org-cost-api.labels" . | nindent 4 }}
+  {{- with .Values.httpRoute.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  parentRefs:
+    - group: {{ .Values.gateway.group }}
+      kind: {{ .Values.gateway.kind }}
+      name: {{ .Values.gateway.name }}
+      namespace: {{ .Values.gateway.namespace }}
+      {{- with .Values.gateway.sectionName }}
+      sectionName: {{ . }}
+      {{- end }}
+  {{- with .Values.hostnames }}
+  hostnames:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    {{- if .Values.chat.enabled }}
+    # Chat agent (must be before catch-all /).
+    # Envoy Gateway default request timeout is ~15s — LLM + SSE need longer.
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /v1/chat
+        - path:
+            type: PathPrefix
+            value: /v1/suggestions
+      timeouts:
+        request: {{ .Values.chat.gatewayTimeout | default "300s" | quote }}
+        backendRequest: {{ .Values.chat.gatewayTimeout | default "300s" | quote }}
+      backendRefs:
+        - name: {{ include "org-cost-api.chat.fullname" . }}
+          port: {{ .Values.chat.service.port }}
+    {{- end }}
+    {{- range .Values.httpRoute.rules }}
+    - {{- if .matches }}
+      matches:
+        {{- toYaml .matches | nindent 8 }}
+      {{- end }}
+      backendRefs:
+        - name: {{ include "org-cost-api.fullname" $ }}
+          port: {{ $.Values.service.port }}
+    {{- end }}
+{{- end }}

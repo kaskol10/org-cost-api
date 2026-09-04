@@ -1,0 +1,60 @@
+{{- if .Values.bootstrapJob.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "org-cost-api.fullname" . }}-bootstrap
+  labels:
+    {{- include "org-cost-api.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: {{ .Values.bootstrapJob.backoffLimit }}
+  {{- with .Values.bootstrapJob.ttlSecondsAfterFinished }}
+  ttlSecondsAfterFinished: {{ . }}
+  {{- end }}
+  template:
+    metadata:
+      labels:
+        {{- include "org-cost-api.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: bootstrap
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: {{ include "org-cost-api.serviceAccountName" . }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: bootstrap
+          image: "{{ .Values.autoConfig.image.repository }}:{{ .Values.autoConfig.image.tag }}"
+          imagePullPolicy: {{ .Values.autoConfig.image.pullPolicy }}
+          command: ["/bin/bash", "/scripts/generate-config.sh"]
+          env:
+            - name: AWS_DEFAULT_REGION
+              value: {{ .Values.autoConfig.defaultRegion | quote }}
+            - name: OUTPUT_PATH
+              value: /tmp/config.yaml
+            - name: MEMBER_ROLE
+              value: {{ .Values.autoConfig.memberRoleName | quote }}
+            - name: CORS_ORIGIN
+              value: {{ .Values.autoConfig.corsOrigin | quote }}
+            - name: COST_LOOKBACK_DAYS
+              value: {{ .Values.autoConfig.costLookbackDays | quote }}
+            - name: ACCOUNT_NAME_PREFIX
+              value: {{ .Values.autoConfig.accountNamePrefix | quote }}
+          volumeMounts:
+            - name: scripts
+              mountPath: /scripts
+              readOnly: true
+      volumes:
+        - name: scripts
+          configMap:
+            name: {{ include "org-cost-api.fullname" . }}-autoconfig
+            defaultMode: 0755
+{{- end }}

@@ -1,0 +1,98 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  OrgCostReadOnly in the organization management (payer) account.
+  SERVICE_MANAGED StackSets do not reliably deploy into the management account,
+  so onboard-iam.sh deploys this stack directly there. Trusts the EKS IRSA role.
+
+Parameters:
+  DeployAccountId:
+    Type: String
+    Description: EKS / IRSA account ID (shared-services).
+    AllowedPattern: "^[0-9]{12}$"
+
+  IrsaRoleName:
+    Type: String
+    Default: org-cost-api-irsa
+
+  RoleName:
+    Type: String
+    Default: OrgCostReadOnly
+
+  TrustVersion:
+    Type: String
+    Default: "3"
+    Description: Bump to force trust-policy refresh when re-running onboard.
+
+Resources:
+  OrgCostReadOnlyRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref RoleName
+      Description: !Sub "org-cost-api payer read-only (trust v${TrustVersion})"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: TrustEksIrsa
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${DeployAccountId}:role/${IrsaRoleName}"
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: OrgCostReadOnly
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: CostExplorerRead
+                Effect: Allow
+                Action:
+                  - ce:GetCostAndUsage
+                  - ce:GetCostAndUsageWithResources
+                  - ce:GetDimensionValues
+                  - ce:GetTags
+                Resource: "*"
+              - Sid: EC2InventoryRead
+                Effect: Allow
+                Action:
+                  - ec2:DescribeVolumes
+                  - ec2:DescribeSnapshots
+                  - ec2:DescribeInstances
+                  - ec2:DescribeRegions
+                Resource: "*"
+              - Sid: CloudWatchMetricsRead
+                Effect: Allow
+                Action:
+                  - cloudwatch:GetMetricData
+                  - cloudwatch:ListMetrics
+                Resource: "*"
+              - Sid: STSIdentity
+                Effect: Allow
+                Action:
+                  - sts:GetCallerIdentity
+                Resource: "*"
+              - Sid: OrganizationsListPayer
+                Effect: Allow
+                Action:
+                  - organizations:ListAccounts
+                  - organizations:DescribeOrganization
+                Resource: "*"
+              - Sid: CURAthenaOptional
+                Effect: Allow
+                Action:
+                  - athena:StartQueryExecution
+                  - athena:GetQueryExecution
+                  - athena:GetQueryResults
+                  - glue:GetDatabase
+                  - glue:GetTable
+                  - glue:GetPartitions
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource: "*"
+      Tags:
+        - Key: org-cost-api/trust-version
+          Value: !Ref TrustVersion
+
+Outputs:
+  RoleArn:
+    Value: !GetAtt OrgCostReadOnlyRole.Arn
+  TrustedIrsaArn:
+    Value: !Sub "arn:aws:iam::${DeployAccountId}:role/${IrsaRoleName}"

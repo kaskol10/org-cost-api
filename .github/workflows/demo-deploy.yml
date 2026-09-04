@@ -1,0 +1,24 @@
+name: Deploy demo
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: github.repository == 'kaskol10/org-cost-api'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy demo to Fly.io
+        run: flyctl deploy --config deploy/fly.toml --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Smoke test
+        run: |
+          URL="https://org-cost-api-demo.fly.dev"
+          curl -fsS "$URL/api/health" | grep -q '"status":"ok"'
+          curl -fsS "$URL/api/meta" | grep -q '"demo":true'

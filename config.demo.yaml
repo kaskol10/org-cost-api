@@ -1,0 +1,19 @@
+# Demo mode — fixture data only, no AWS credentials required.
+# Also enable with: ORG_COST_DEMO=1
+
+demo: true
+listen_addr: ":8080"
+cors_origin: "*"
+cost_lookback_days: 30
+
+accounts:
+  - id: "111111111111"
+    name: production
+  - id: "222222222222"
+    name: staging
+  - id: "333333333333"
+    name: analytics
+  - id: "444444444444"
+    name: sandbox
+  - id: "555555555555"
+    name: legacy

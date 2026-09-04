@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "org-cost-api": {
+      "command": "/absolute/path/to/.venv/bin/org-cost-mcp",
+      "env": {
+        "ORG_COST_API_URL": "http://127.0.0.1:8080",
+        "ORG_COST_API_TOKEN": "",
+        "CONFIG_PATH": "/absolute/path/to/config.yaml"
+      }
+    }
+  }
+}

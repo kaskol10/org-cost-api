@@ -1,0 +1,35 @@
+org-cost-api has been deployed.
+
+1. Check readiness:
+   kubectl -n {{ .Release.Namespace }} get pods -l app.kubernetes.io/instance={{ .Release.Name }}
+   kubectl -n {{ .Release.Namespace }} logs -l app.kubernetes.io/instance={{ .Release.Name }} -c autoconfig
+   kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "org-cost-api.fullname" . }} 8080:{{ .Values.service.port }}
+   curl -s http://127.0.0.1:8080/api/ready
+
+{{- if .Values.autoConfig.enabled }}
+
+2. Auto-config (init container ListAccounts → config.yaml):
+   kubectl -n {{ .Release.Namespace }} logs deploy/{{ include "org-cost-api.fullname" . }} -c autoconfig
+{{- end }}
+
+{{- if .Values.gateway.enabled }}
+
+3. HTTPRoute attached to Gateway {{ .Values.gateway.name }} ({{ .Values.gateway.namespace }}):
+{{- range .Values.hostnames }}
+   https://{{ . }}
+{{- end }}
+{{- end }}
+
+{{- if .Values.chat.enabled }}
+
+4. Chat agent (LLM={{ .Values.chat.llm.provider }} / {{ .Values.chat.llm.model }}):
+   kubectl -n {{ .Release.Namespace }} get pods -l app.kubernetes.io/component=chat
+   curl -s https://{{ index .Values.hostnames 0 }}/v1/chat/health
+   # Rebuild API/UI image with: --build-arg VITE_CHAT_URL=https://{{ index .Values.hostnames 0 }}
+{{- else }}
+
+4. Chat/LLM is off (chat.enabled=false). To enable: set chat.enabled=true, push
+   org-cost-chat image, rebuild UI with VITE_CHAT_URL — see docs/eks-operate.md.
+{{- end }}
+
+Docs: docs/eks-operate.md

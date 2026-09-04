@@ -1,0 +1,42 @@
+# Production stack: API + static UI with your real AWS config.
+#
+# Prerequisites:
+#   ./scripts/operate-bootstrap.sh --profile YOUR_PAYER_PROFILE --output config.yaml
+#   aws sso login   # refresh SSO before starting if profiles use SSO
+#
+# Optional API auth: set api_token_env in config.yaml, then export before compose:
+#   export ORG_COST_API_TOKEN='your-token'
+#
+#   docker compose -f docker-compose.prod.yml up --build
+#   open http://localhost:8080
+#
+# For API + chat agent, use docker-compose.full.yml instead.
+
+services:
+  app:
+    build:
+      context: .
+      target: prod-ui
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./config.yaml:/config/config.yaml:ro
+      - ${HOME}/.aws:/home/app/.aws:ro
+      - org-cost-history:/data/history
+    environment:
+      CONFIG_PATH: /config/config.yaml
+      STATIC_DIR: /app/static
+      HISTORY_DIR: /data/history
+      AWS_SHARED_CREDENTIALS_FILE: /home/app/.aws/credentials
+      AWS_CONFIG_FILE: /home/app/.aws/config
+      ORG_COST_API_TOKEN: ${ORG_COST_API_TOKEN:-}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/api/ready"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+
+volumes:
+  org-cost-history:

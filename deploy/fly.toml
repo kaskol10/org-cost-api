@@ -1,0 +1,32 @@
+# Public synthetic demo — deploy from repo root:
+#   ./scripts/deploy-demo.sh
+# Requires: flyctl auth login (or FLY_API_TOKEN in CI)
+
+app = 'org-cost-api-demo'
+primary_region = 'ord'
+
+[build]
+  dockerfile = 'Dockerfile'
+  target = 'demo'
+
+[env]
+  ORG_COST_DEMO = '1'
+  CONFIG_PATH = '/config/demo.yaml'
+  STATIC_DIR = '/app/static'
+  HISTORY_DIR = '/data/history'
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
+
+[[vm]]
+  size = 'shared-cpu-1x'
+  memory = '512mb'
+
+[mounts]
+  source = 'demo_history'
+  destination = '/data/history'

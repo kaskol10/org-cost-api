@@ -1,0 +1,14 @@
+config.yaml
+test-config.yaml
+.git
+.github
+**/.venv
+**/node_modules
+frontend/dist
+reports/
+*.md
+!backend/**/*.md
+mcp-server/.venv
+.DS_Store
+.idea
+.vscode

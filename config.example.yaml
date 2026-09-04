@@ -1,0 +1,62 @@
+# Copy to config.yaml — see docs/getting-started.md and docs/onboarding-aws-auth.md
+
+listen_addr: ":8080"
+cors_origin: "http://localhost:5173"
+cost_lookback_days: 30
+
+# Org payer Cost Explorer profile (queries all linked accounts via LINKED_ACCOUNT filter).
+billing_profile: Master.AdministratorAccess
+
+# Optional payer API keys (alternative to billing_profile):
+# billing_access_key_id: AKIA...
+# billing_secret_access_key_env: ORG_COST_BILLING_SECRET
+
+# Optional API auth — when set, /api/* routes require Authorization: Bearer <token>
+# (except /api/health and /api/ready)
+# api_token_env: ORG_COST_API_TOKEN
+
+# Optional: daily cost snapshots for trends (default ~/.org-cost/history)
+# history_dir: /Users/you/.org-cost/history
+# prior_period_cache_hours: 24
+
+# Optional conversational Ask — Python chat agent (org-cost-chat), not the Go server.
+# See docs/chat-setup.md. Env vars override these values.
+# chat:
+#   provider: litellm          # litellm | vllm | openai
+#   base_url: https://litellm.internal/v1
+#   api_key_env: LITELLM_API_KEY
+#   model: claude-sonnet-4-20250514
+#   api_url: http://127.0.0.1:8080   # optional; defaults from listen_addr above
+#   vllm_base_url: http://localhost:8000/v1
+
+# Optional: historical EBS disk/snapshot counts per day from CUR (Athena).
+# cur:
+#   enabled: true
+#   profile: Master.AdministratorAccess  # defaults to billing_profile
+#   region: eu-west-1
+#   database: athenacurcfn_your_report
+#   table: your_cur_table
+#   workgroup: primary
+#   output_s3: s3://your-athena-results-bucket/prefix/
+#   partitioned: true
+
+accounts:
+  - name: production
+    profile: Production.AdministratorAccess
+    region: eu-west-1
+  - name: staging
+    profile: Staging.AdministratorAccess
+    region: eu-west-1
+
+  # Member-billed account (Cost Explorer runs from the account itself):
+  # - name: partner-org
+  #   profile: Partner-Production.AdministratorAccess
+  #   billing_profile: account
+  #   region: eu-west-1
+
+  # API keys per account (no Granted) — prefer secret_access_key_env:
+  # - name: external-partner
+  #   id: "123456789012"
+  #   access_key_id: AKIA...
+  #   secret_access_key_env: ORG_COST_PARTNER_SECRET
+  #   region: eu-west-1

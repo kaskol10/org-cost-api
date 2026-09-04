@@ -1,0 +1,72 @@
+# Full stack: API + UI + conversational chat agent.
+#
+#   cp .env.example .env   # set LLM_BASE_URL, LLM_API_KEY
+#   ./scripts/operate-bootstrap.sh --profile YOUR_PAYER_PROFILE --output config.yaml
+#   aws sso login
+#   docker compose -f docker-compose.full.yml up --build
+#   open http://localhost:8080
+#
+# Chat agent: http://localhost:8090/v1/chat/health
+# For local frontend dev without Docker, use Vite /chat proxy — see docs/chat-setup.md
+#
+# API-only production (no chat): use docker-compose.prod.yml
+
+services:
+  app:
+    build:
+      context: .
+      target: prod-ui
+      args:
+        VITE_CHAT_URL: ${VITE_CHAT_URL:-http://localhost:8090}
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./config.yaml:/config/config.yaml:ro
+      - ${HOME}/.aws:/home/app/.aws:ro
+      - org-cost-full-history:/data/history
+    environment:
+      CONFIG_PATH: /config/config.yaml
+      STATIC_DIR: /app/static
+      HISTORY_DIR: /data/history
+      AWS_SHARED_CREDENTIALS_FILE: /home/app/.aws/credentials
+      AWS_CONFIG_FILE: /home/app/.aws/config
+      ORG_COST_API_TOKEN: ${ORG_COST_API_TOKEN:-}
+    depends_on:
+      chat:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/api/ready"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+
+  chat:
+    build:
+      context: ./mcp-server
+    restart: unless-stopped
+    ports:
+      - "8090:8090"
+    volumes:
+      - ./config.yaml:/config/config.yaml:ro
+    environment:
+      CONFIG_PATH: /config/config.yaml
+      ORG_COST_API_URL: http://app:8080
+      ORG_COST_API_TOKEN: ${ORG_COST_API_TOKEN:-}
+      LLM_PROVIDER: ${LLM_PROVIDER:-litellm}
+      LLM_BASE_URL: ${LLM_BASE_URL:-${LITELLM_BASE_URL:-}}
+      LLM_API_KEY: ${LLM_API_KEY:-${LITELLM_API_KEY:-}}
+      LLM_MODEL: ${LLM_MODEL:-${LITELLM_MODEL:-gpt-4o-mini}}
+      VLLM_BASE_URL: ${VLLM_BASE_URL:-http://host.docker.internal:8000/v1}
+      VLLM_API_KEY: ${VLLM_API_KEY:-EMPTY}
+      CHAT_CORS_ORIGINS: http://localhost:5173,http://localhost:8080,http://127.0.0.1:5173,http://127.0.0.1:8080
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8090/v1/chat/health')"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+
+volumes:
+  org-cost-full-history:

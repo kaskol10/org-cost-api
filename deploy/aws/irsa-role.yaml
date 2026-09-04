@@ -1,0 +1,108 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: EKS IRSA role for org-cost-api — deploy directly in the shared-services (EKS) account.
+
+Parameters:
+  OidcProviderArn:
+    Type: String
+    Description: EKS OIDC provider ARN in this account.
+    AllowedPattern: "^arn:aws:iam::[0-9]{12}:oidc-provider/.+$"
+
+  KubernetesNamespace:
+    Type: String
+    Default: monitoring
+
+  ServiceAccountName:
+    Type: String
+    Default: org-cost-api
+
+  IrsaRoleName:
+    Type: String
+    Default: org-cost-api-irsa
+
+  MemberRoleName:
+    Type: String
+    Default: OrgCostReadOnly
+    Description: OrgCostReadOnly role name in member accounts (for sts:AssumeRole policy).
+
+Resources:
+  OrgCostApiIrsaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref IrsaRoleName
+      Description: EKS IRSA role for org-cost-api (payer CE, ListAccounts, AssumeRole to members).
+      AssumeRolePolicyDocument:
+        Fn::Sub:
+          - |
+            {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Principal": {
+                    "Federated": "${OidcProviderArn}"
+                  },
+                  "Action": "sts:AssumeRoleWithWebIdentity",
+                  "Condition": {
+                    "StringEquals": {
+                      "${Issuer}:aud": "sts.amazonaws.com",
+                      "${Issuer}:sub": "system:serviceaccount:${KubernetesNamespace}:${ServiceAccountName}"
+                    }
+                  }
+                }
+              ]
+            }
+          - OidcProviderArn: !Ref OidcProviderArn
+            Issuer: !Select [1, !Split ["oidc-provider/", !Ref OidcProviderArn]]
+            KubernetesNamespace: !Ref KubernetesNamespace
+            ServiceAccountName: !Ref ServiceAccountName
+      Policies:
+        - PolicyName: OrgCostApiIrsa
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: CostExplorerRead
+                Effect: Allow
+                Action:
+                  - ce:GetCostAndUsage
+                  - ce:GetCostAndUsageWithResources
+                  - ce:GetDimensionValues
+                  - ce:GetTags
+                Resource: "*"
+              - Sid: EC2InventoryRead
+                Effect: Allow
+                Action:
+                  - ec2:DescribeVolumes
+                  - ec2:DescribeSnapshots
+                  - ec2:DescribeInstances
+                  - ec2:DescribeRegions
+                Resource: "*"
+              - Sid: CloudWatchMetricsRead
+                Effect: Allow
+                Action:
+                  - cloudwatch:GetMetricData
+                  - cloudwatch:ListMetrics
+                Resource: "*"
+              - Sid: OrganizationsList
+                Effect: Allow
+                Action:
+                  - organizations:ListAccounts
+                  - organizations:DescribeOrganization
+                Resource: "*"
+              - Sid: AssumeMemberReadOnly
+                Effect: Allow
+                Action:
+                  - sts:AssumeRole
+                Resource: !Sub "arn:aws:iam::*:role/${MemberRoleName}"
+              - Sid: STSIdentity
+                Effect: Allow
+                Action:
+                  - sts:GetCallerIdentity
+                Resource: "*"
+
+Outputs:
+  IrsaRoleArn:
+    Description: EKS IRSA role ARN — Helm serviceAccount annotation.
+    Value: !GetAtt OrgCostApiIrsaRole.Arn
+  IrsaRoleName:
+    Description: EKS IRSA IAM role name.
+    Value: !Ref IrsaRoleName

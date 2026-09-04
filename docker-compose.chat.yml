@@ -1,0 +1,48 @@
+# Local dev: Go API + chat agent (requires org LiteLLM proxy credentials).
+#
+#   export LLM_BASE_URL=https://litellm.internal/v1
+#   export LLM_API_KEY=your-key
+#   export LLM_MODEL=claude-sonnet-4-20250514
+#
+# vLLM instead:
+#   export LLM_PROVIDER=vllm
+#   export LLM_MODEL=meta-llama/Meta-Llama-3-8B-Instruct
+#   export VLLM_BASE_URL=http://host.docker.internal:8000/v1
+#   docker compose -f docker-compose.chat.yml up --build
+#
+# Frontend (separate terminal):
+#   cd frontend && VITE_CHAT_URL=http://localhost:8090 npm run dev
+
+services:
+  api:
+    build:
+      context: .
+      target: demo
+    ports:
+      - "8080:8080"
+    environment:
+      ORG_COST_DEMO: "1"
+      CONFIG_PATH: /config/demo.yaml
+      STATIC_DIR: /app/static
+    volumes:
+      - chat-demo-history:/data/history
+
+  chat:
+    build:
+      context: ./mcp-server
+    ports:
+      - "8090:8090"
+    environment:
+      ORG_COST_API_URL: http://api:8080
+      LLM_PROVIDER: ${LLM_PROVIDER:-litellm}
+      LLM_BASE_URL: ${LLM_BASE_URL:-${LITELLM_BASE_URL:-}}
+      LLM_API_KEY: ${LLM_API_KEY:-${LITELLM_API_KEY:-}}
+      LLM_MODEL: ${LLM_MODEL:-${LITELLM_MODEL:-gpt-4o-mini}}
+      VLLM_BASE_URL: ${VLLM_BASE_URL:-http://host.docker.internal:8000/v1}
+      VLLM_API_KEY: ${VLLM_API_KEY:-EMPTY}
+      CHAT_CORS_ORIGINS: http://localhost:5173,http://localhost:8080,http://127.0.0.1:5173
+    depends_on:
+      - api
+
+volumes:
+  chat-demo-history:

@@ -1,0 +1,13 @@
+apiVersion: v2
+name: org-cost-api
+description: AWS org cost dashboard API + UI for EKS (Gateway API HTTPRoute, IRSA)
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - aws
+  - finops
+  - cost-explorer
+home: https://github.com/kaskol10/org-cost-api
+sources:
+  - https://github.com/kaskol10/org-cost-api

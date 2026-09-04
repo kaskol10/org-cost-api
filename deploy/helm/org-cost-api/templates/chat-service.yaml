@@ -1,0 +1,18 @@
+{{- if .Values.chat.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "org-cost-api.chat.fullname" . }}
+  labels:
+    {{- include "org-cost-api.labels" . | nindent 4 }}
+    app.kubernetes.io/component: chat
+spec:
+  type: {{ .Values.chat.service.type }}
+  ports:
+    - port: {{ .Values.chat.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "org-cost-api.chat.selectorLabels" . | nindent 4 }}
+{{- end }}

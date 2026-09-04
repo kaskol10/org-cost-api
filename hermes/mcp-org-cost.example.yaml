@@ -1,0 +1,8 @@
+# Example Hermes MCP server entry — merge into ~/.hermes/config.yaml (see docs/hermes-setup.md)
+#
+# mcp_servers:
+#   org-cost-api:
+#     command: /absolute/path/to/org-cost-api/mcp-server/.venv/bin/org-cost-mcp
+#     env:
+#       ORG_COST_API_URL: http://localhost:8080
+#       ORG_COST_API_TOKEN: your-token-if-configured
