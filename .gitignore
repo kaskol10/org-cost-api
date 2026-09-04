@@ -39,3 +39,6 @@ mcp-server/.pytest_cache/
 history/
 *.pem
 *.key
+
+# Local Go build artifacts
+backend/verify-auth
