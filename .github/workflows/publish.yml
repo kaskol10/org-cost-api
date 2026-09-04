@@ -21,14 +21,20 @@ jobs:
               ghcr.io/${{ github.repository }}:demo
               ghcr.io/${{ github.repository }}:latest
               ghcr.io/${{ github.repository }}:demo-${{ github.ref_name }}
-          - target: prod-ui
-            tags: |
-              ghcr.io/${{ github.repository }}:prod
-              ghcr.io/${{ github.repository }}:prod-${{ github.ref_name }}
+            build-args: ""
           - target: api
             tags: |
               ghcr.io/${{ github.repository }}:api
               ghcr.io/${{ github.repository }}:api-${{ github.ref_name }}
+            build-args: ""
+          - target: prod-ui
+            tags: |
+              ghcr.io/${{ github.repository }}:prod
+              ghcr.io/${{ github.repository }}:prod-${{ github.ref_name }}
+            # Baked into the UI at build time (import.meta.env.VITE_CHAT_URL).
+            # Override with repo variable VITE_CHAT_URL if the hostname changes.
+            build-args: |
+              VITE_CHAT_URL=${{ vars.VITE_CHAT_URL || 'https://costs.internal.resiz.es' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -47,6 +53,7 @@ jobs:
           target: ${{ matrix.target }}
           push: true
           tags: ${{ matrix.tags }}
+          build-args: ${{ matrix.build-args }}
 
   docker-chat:
     runs-on: ubuntu-latest

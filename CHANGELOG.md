@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.0.2] — 2026-09-04
+
+### Added
+
+- Bake `VITE_CHAT_URL` into the `:prod` GHCR image at publish time (default `https://costs.internal.resiz.es`; override with repo variable `VITE_CHAT_URL`)
+
 ### Added
 
 - Public demo deploy: `deploy/fly.toml`, `scripts/deploy-demo.sh`, GitHub Actions demo deploy workflow
