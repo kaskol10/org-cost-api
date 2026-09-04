@@ -78,7 +78,7 @@ def test_merge_enrichment_by_id():
 
 @patch("org_cost_mcp.suggestions_enrich.litellm.completion")
 @patch("org_cost_mcp.suggestions_enrich.fetch_report")
-@patch("org_cost_mcp.llm_config.llm_configured", return_value=True)
+@patch("org_cost_mcp.suggestions_enrich.llm_configured", return_value=True)
 def test_enrich_suggestions_calls_llm(mock_configured, mock_report, mock_completion):
     mock_report.return_value = SAMPLE_REPORT
     msg = MagicMock()
@@ -106,7 +106,7 @@ def test_enrich_suggestions_calls_llm(mock_configured, mock_report, mock_complet
 
 @patch("org_cost_mcp.suggestions_enrich.litellm.completion")
 @patch("org_cost_mcp.suggestions_enrich.fetch_report")
-@patch("org_cost_mcp.llm_config.llm_configured", return_value=True)
+@patch("org_cost_mcp.suggestions_enrich.llm_configured", return_value=True)
 def test_enrich_suggestions_uses_passed_report(mock_configured, mock_report, mock_completion):
     mock_report.return_value = SAMPLE_REPORT
     msg = MagicMock()

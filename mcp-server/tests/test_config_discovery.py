@@ -37,10 +37,23 @@ def test_apply_sets_api_url_from_listen_addr(tmp_path, monkeypatch):
     monkeypatch.delenv("LLM_PROVIDER", raising=False)
     monkeypatch.delenv("LLM_MODEL", raising=False)
     monkeypatch.delenv("LLM_BASE_URL", raising=False)
+    monkeypatch.delenv("ORG_COST_CONFIG_PATH", raising=False)
     monkeypatch.setenv("ORG_COST_API_TOKEN", "secret")
     config_discovery._APPLIED = False
-    config_discovery.apply_discovered_config(str(cfg))
-    assert os.environ["ORG_COST_API_URL"] == "http://127.0.0.1:8080"
-    assert os.environ["LLM_PROVIDER"] == "vllm"
-    assert os.environ["LLM_MODEL"] == "test-model"
-    assert os.environ["ORG_COST_API_TOKEN"] == "secret"
+    try:
+        config_discovery.apply_discovered_config(str(cfg))
+        assert os.environ["ORG_COST_API_URL"] == "http://127.0.0.1:8080"
+        assert os.environ["LLM_PROVIDER"] == "vllm"
+        assert os.environ["LLM_MODEL"] == "test-model"
+        assert os.environ["ORG_COST_API_TOKEN"] == "secret"
+    finally:
+        # apply_discovered_config writes os.environ directly (not via monkeypatch)
+        for key in (
+            "ORG_COST_API_URL",
+            "LLM_PROVIDER",
+            "LLM_MODEL",
+            "LLM_BASE_URL",
+            "ORG_COST_CONFIG_PATH",
+        ):
+            os.environ.pop(key, None)
+        config_discovery._APPLIED = False

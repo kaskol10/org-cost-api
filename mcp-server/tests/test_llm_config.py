@@ -7,16 +7,28 @@ from unittest.mock import patch
 
 from org_cost_mcp.llm_config import llm_completion_kwargs, llm_configured, resolve_llm_settings
 
+_LLM_ENV_PREFIXES = ("LLM_", "LITELLM_", "VLLM_")
+
+
+def _env_without_llm(**overrides: str) -> dict[str, str]:
+    env = {
+        k: v
+        for k, v in os.environ.items()
+        if not k.startswith(_LLM_ENV_PREFIXES)
+    }
+    env.update(overrides)
+    return env
+
 
 def test_litellm_proxy_from_legacy_env():
     with patch.dict(
         os.environ,
-        {
-            "LITELLM_BASE_URL": "https://litellm.internal/v1",
-            "LITELLM_API_KEY": "sk-proxy",
-            "LITELLM_MODEL": "claude-sonnet-4-20250514",
-        },
-        clear=False,
+        _env_without_llm(
+            LITELLM_BASE_URL="https://litellm.internal/v1",
+            LITELLM_API_KEY="sk-proxy",
+            LITELLM_MODEL="claude-sonnet-4-20250514",
+        ),
+        clear=True,
     ):
         settings = resolve_llm_settings()
         assert settings.provider == "litellm"
@@ -29,14 +41,14 @@ def test_litellm_proxy_from_legacy_env():
 def test_generic_llm_env_takes_precedence():
     with patch.dict(
         os.environ,
-        {
-            "LLM_PROVIDER": "openai",
-            "LLM_BASE_URL": "http://proxy:8080/v1",
-            "LLM_API_KEY": "key-a",
-            "LLM_MODEL": "gpt-4o",
-            "LITELLM_MODEL": "ignored",
-        },
-        clear=False,
+        _env_without_llm(
+            LLM_PROVIDER="openai",
+            LLM_BASE_URL="http://proxy:8080/v1",
+            LLM_API_KEY="key-a",
+            LLM_MODEL="gpt-4o",
+            LITELLM_MODEL="ignored",
+        ),
+        clear=True,
     ):
         settings = resolve_llm_settings()
         assert settings.provider == "openai"
@@ -45,14 +57,14 @@ def test_generic_llm_env_takes_precedence():
 
 
 def test_vllm_defaults_and_model_prefix():
-    env = {
-        k: v
-        for k, v in os.environ.items()
-        if not k.startswith(("LLM_", "LITELLM_", "VLLM_"))
-    }
-    env["LLM_PROVIDER"] = "vllm"
-    env["LLM_MODEL"] = "meta-llama/Meta-Llama-3-8B-Instruct"
-    with patch.dict(os.environ, env, clear=True):
+    with patch.dict(
+        os.environ,
+        _env_without_llm(
+            LLM_PROVIDER="vllm",
+            LLM_MODEL="meta-llama/Meta-Llama-3-8B-Instruct",
+        ),
+        clear=True,
+    ):
         settings = resolve_llm_settings()
         assert settings.provider == "vllm"
         assert settings.base_url == "http://localhost:8000/v1"
@@ -65,12 +77,12 @@ def test_vllm_defaults_and_model_prefix():
 def test_vllm_custom_base_url():
     with patch.dict(
         os.environ,
-        {
-            "LLM_PROVIDER": "vllm",
-            "VLLM_BASE_URL": "http://gpu-host:8000/v1",
-            "LLM_MODEL": "hosted_vllm/my-model",
-        },
-        clear=False,
+        _env_without_llm(
+            LLM_PROVIDER="vllm",
+            VLLM_BASE_URL="http://gpu-host:8000/v1",
+            LLM_MODEL="hosted_vllm/my-model",
+        ),
+        clear=True,
     ):
         settings = resolve_llm_settings()
         assert settings.base_url == "http://gpu-host:8000/v1"

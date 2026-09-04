@@ -36,7 +36,8 @@ reports/
 # Caches / local AWS
 mcp-server/.pytest_cache/
 .aws/
-history/
+# Daily cost snapshots dir (repo root) — do not ignore backend/internal/history/
+/history/
 *.pem
 *.key
 
