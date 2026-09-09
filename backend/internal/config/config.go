@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/goccy/go-yaml"
 )
@@ -163,12 +162,6 @@ func validateAPIToken(cfg *Config) error {
 		return fmt.Errorf("api_token_env %q is set but environment variable is empty (and no inline api_token)", envName)
 	}
 	return nil
-}
-
-func (c *Config) CostDateRange() (start, end string) {
-	endTime := time.Now().UTC()
-	startTime := endTime.AddDate(0, 0, -c.CostLookbackDays)
-	return startTime.Format("2006-01-02"), endTime.Format("2006-01-02")
 }
 
 // ResolveAPIToken returns the configured bearer token, if any.

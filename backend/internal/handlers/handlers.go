@@ -80,7 +80,8 @@ func (a *API) trends(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	refresh := strings.TrimSpace(r.URL.Query().Get("refresh"))
 	force := refresh != "" && refresh != "0" && refresh != "false"
-	data, err := a.agg.Trends(ctx, force)
+	period := strings.TrimSpace(r.URL.Query().Get("period"))
+	data, err := a.agg.Trends(ctx, force, period)
 	if err != nil {
 		writeAPIError(w, err)
 		return
@@ -93,7 +94,8 @@ func (a *API) suggestions(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	refresh := strings.TrimSpace(r.URL.Query().Get("refresh"))
 	force := refresh != "" && refresh != "0" && refresh != "false"
-	data, err := a.agg.Suggestions(ctx, force)
+	period := strings.TrimSpace(r.URL.Query().Get("period"))
+	data, err := a.agg.Suggestions(ctx, force, period)
 	if err != nil {
 		writeAPIError(w, err)
 		return
@@ -106,7 +108,8 @@ func (a *API) report(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	refresh := strings.TrimSpace(r.URL.Query().Get("refresh"))
 	force := refresh != "" && refresh != "0" && refresh != "false"
-	data, err := a.agg.Report(ctx, force)
+	period := strings.TrimSpace(r.URL.Query().Get("period"))
+	data, err := a.agg.Report(ctx, force, period)
 	if err != nil {
 		writeAPIError(w, err)
 		return

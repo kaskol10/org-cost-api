@@ -9,7 +9,17 @@ import type {
   ServiceTrend,
   TrendsResponse,
 } from "../types";
-import { formatCurrency, formatGiB, formatPercent, formatServiceName } from "../utils/format";
+import type { PeriodPreset } from "../api";
+import {
+  formatCurrency,
+  formatGiB,
+  formatPercent,
+  formatServiceName,
+  formatServiceSpendDelta,
+  formatSignedCurrency,
+  formatSignedPercent,
+} from "../utils/format";
+import { periodLabel, priorCompareLabel } from "../utils/periodLabels";
 import { fetchServiceTagDelta, fetchServiceTagTotals } from "../api";
 
 interface Props {
@@ -20,6 +30,7 @@ interface Props {
   dateRange: string;
   trends?: TrendsResponse | null;
   trendsLoading?: boolean;
+  period: PeriodPreset;
 }
 
 const GP3_USD_PER_GIB = 0.08;
@@ -82,25 +93,35 @@ function TrendRow({
   onClick?: () => void;
 }) {
   const name = item.display_name || formatServiceName(item.service);
-  return (
-    <li
-      className={`summary-trend-item ${active ? "summary-trend-active" : ""} ${
-        onClick ? "summary-trend-clickable" : ""
-      }`}
-      style={onClick ? { cursor: "pointer" } : undefined}
-      onClick={onClick}
-      role={onClick ? "button" : undefined}
-      aria-label={onClick ? `Explain change for ${name}` : undefined}
-    >
+  const body = (
+    <>
       <div className="summary-bar-row">
         <span className="summary-bar-name">{name}</span>
         <span className={`summary-trend-delta ${positive ? "up" : "down"}`}>
-          {formatCurrency(item.change_usd)} ({formatPercent(item.change_percent)})
+          {formatServiceSpendDelta(item.change_usd, item.change_percent)}
         </span>
       </div>
       <div className="summary-trend-meta">
         {formatCurrency(item.prior_usd)} → {formatCurrency(item.current_usd)}
       </div>
+    </>
+  );
+
+  return (
+    <li className={`summary-trend-item ${active ? "summary-trend-active" : ""}`}>
+      {onClick ? (
+        <button
+          type="button"
+          className="summary-trend-btn"
+          onClick={onClick}
+          aria-pressed={active}
+          aria-label={`Explain change for ${name}`}
+        >
+          {body}
+        </button>
+      ) : (
+        body
+      )}
     </li>
   );
 }
@@ -113,10 +134,14 @@ export default function SummaryDashboard({
   dateRange,
   trends,
   trendsLoading,
+  period,
 }: Props) {
   const top = topServices.slice(0, 5);
   const unattachedGiB = totals.volume_available_gib ?? 0;
   const estWasteMonthly = unattachedGiB * GP3_USD_PER_GIB;
+  const lookbackDays = trends?.current_period?.days;
+  const activePeriodLabel = periodLabel(period, lookbackDays);
+  const compareLabel = priorCompareLabel(period);
 
   const wasteAccounts = accounts
     .filter((a) => (a.volumes?.available_count ?? 0) > 0)
@@ -128,12 +153,8 @@ export default function SummaryDashboard({
     .sort((a, b) => b.gib - a.gib)
     .slice(0, 4);
 
-  const ec2OtherShare =
-    totals.org_total > 0 ? (totals.ec2_other_cost / totals.org_total) * 100 : 0;
-
   const orgChange = trends?.org_total;
   const hasPrior = orgChange && orgChange.prior_usd > 0;
-  const changeUp = (orgChange?.change_percent ?? 0) > 0;
 
   const [explainLoading, setExplainLoading] = useState(false);
   const [explainError, setExplainError] = useState<string | null>(null);
@@ -151,7 +172,24 @@ export default function SummaryDashboard({
     };
   }, []);
 
+  function clearExplain() {
+    explainAbortRef.current?.abort();
+    explainGenRef.current += 1;
+    setExplainLoading(false);
+    setExplainError(null);
+    setTotalsNote(null);
+    setExplainService(null);
+    setExplain(null);
+    setTagTotals(null);
+    setActiveAccountId(null);
+  }
+
   async function loadExplain(service: string) {
+    if (explainService === service) {
+      clearExplain();
+      return;
+    }
+
     explainAbortRef.current?.abort();
     const ac = new AbortController();
     explainAbortRef.current = ac;
@@ -240,7 +278,7 @@ export default function SummaryDashboard({
         <div className="summary-bar-row">
           <span className="summary-bar-name mono">{d.key}</span>
           <span className={`summary-trend-delta ${positive ? "up" : "down"}`}>
-            {formatCurrency(d.change_usd)} ({formatPercent(d.change_percent)})
+            {formatServiceSpendDelta(d.change_usd, d.change_percent)}
           </span>
         </div>
         <div className="summary-trend-meta">
@@ -250,36 +288,42 @@ export default function SummaryDashboard({
     );
   }
 
+  const hasTrendMovers =
+    (trends?.top_increases?.length ?? 0) > 0 || (trends?.top_decreases?.length ?? 0) > 0;
+
+  const explainPickServices = useMemo(() => {
+    if (!trends) return [];
+    const seen = new Set<string>();
+    const picks: ServiceTrend[] = [];
+    for (const t of [
+      ...(trends.top_increases ?? []).slice(0, 4),
+      ...(trends.top_decreases ?? []).slice(0, 4),
+    ]) {
+      if (seen.has(t.service)) continue;
+      seen.add(t.service);
+      picks.push(t);
+    }
+    return picks;
+  }, [trends]);
+
   return (
     <section className="summary-dashboard" aria-label="Organization summary">
-      <div className="summary-hero">
+      <div className="summary-hero summary-hero-compact">
         <div className="summary-hero-main">
-          <p className="summary-eyebrow">Organization usage spend</p>
-          <div className="summary-total-row">
-            <p className="summary-total">{formatCurrency(totals.org_total)}</p>
-            {trendsLoading && (
-              <span className="summary-change-pill loading">Comparing…</span>
-            )}
-            {!trendsLoading && hasPrior && orgChange && (
-              <span className={`summary-change-pill ${changeUp ? "up" : "down"}`}>
-                {formatPercent(orgChange.change_percent)} vs prior
-              </span>
-            )}
-          </div>
+          <p className="summary-eyebrow">Explore breakdown · {activePeriodLabel}</p>
           <p className="summary-meta">
             {dateRange}
             <span className="summary-dot">·</span>
             {totals.account_count} accounts
-            <span className="summary-dot">·</span>
-            EC2-Other {formatCurrency(totals.ec2_other_cost)} ({ec2OtherShare.toFixed(0)}%)
           </p>
           {!trendsLoading && hasPrior && orgChange && trends && (
             <p className="summary-prior">
-              Prior period ({formatPeriodRange(trends.prior_period)}):{" "}
+              Prior ({formatPeriodRange(trends.prior_period)}):{" "}
               <strong>{formatCurrency(orgChange.prior_usd)}</strong>
-              <span className="summary-dot">·</span>
-              {formatCurrency(orgChange.change_usd)} change
             </p>
+          )}
+          {trendsLoading && (
+            <p className="summary-prior">Loading comparison details…</p>
           )}
         </div>
         {orgDaily.length > 1 && (
@@ -297,35 +341,56 @@ export default function SummaryDashboard({
             <p className="summary-empty">No service data</p>
           ) : (
             <ul className="summary-bar-list">
-              {top.map((s) => (
-                <li key={s.service}>
-                  <div className="summary-bar-row">
-                    <span className="summary-bar-name">{formatServiceName(s.service)}</span>
-                    <span className="summary-bar-value">{formatCurrency(s.amount)}</span>
-                  </div>
-                  <div className="summary-bar-track">
-                    <div
-                      className="summary-bar-fill"
-                      style={{ width: `${Math.min(100, s.percent ?? 0)}%` }}
-                    />
-                  </div>
-                </li>
-              ))}
+              {top.map((s) => {
+                const active = explainService === s.service;
+                const name = formatServiceName(s.service);
+                return (
+                  <li
+                    key={s.service}
+                    className={`summary-trend-item ${active ? "summary-trend-active" : ""}`}
+                  >
+                    <button
+                      type="button"
+                      className="summary-trend-btn"
+                      onClick={() => loadExplain(s.service)}
+                      aria-pressed={active}
+                      aria-label={`Explain change for ${name}`}
+                      disabled={!trends?.current_period?.start || !trends?.current_period?.end}
+                    >
+                      <div className="summary-bar-row">
+                        <span className="summary-bar-name">{name}</span>
+                        <span className="summary-bar-value">{formatCurrency(s.amount)}</span>
+                      </div>
+                      <div className="summary-bar-track">
+                        <div
+                          className="summary-bar-fill"
+                          style={{ width: `${Math.min(100, s.percent ?? 0)}%` }}
+                        />
+                      </div>
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>
 
         <div className="summary-card">
-          <h2 className="summary-card-title">vs prior period</h2>
+          <h2 className="summary-card-title">{compareLabel}</h2>
           {trendsLoading && <p className="summary-empty">Loading comparison…</p>}
           {!trendsLoading && !trends && (
             <p className="summary-empty">Trend comparison unavailable</p>
           )}
           {!trendsLoading && trends && (
             <>
+              {period === "mtd" && trends.prior_period?.start && (
+                <p className="summary-trend-label">
+                  Prior MTD {formatPeriodRange(trends.prior_period)}
+                </p>
+              )}
               {(trends.top_increases?.length ?? 0) > 0 && (
                 <>
-                  <p className="summary-trend-label">Increases</p>
+                  <p className="summary-trend-label">Higher spend</p>
                   <ul className="summary-trend-list">
                     {trends.top_increases.slice(0, 4).map((t) => (
                       <TrendRow
@@ -341,7 +406,7 @@ export default function SummaryDashboard({
               )}
               {(trends.top_decreases?.length ?? 0) > 0 && (
                 <>
-                  <p className="summary-trend-label">Decreases</p>
+                  <p className="summary-trend-label">Lower spend</p>
                   <ul className="summary-trend-list">
                     {trends.top_decreases.slice(0, 4).map((t) => (
                       <TrendRow
@@ -359,6 +424,26 @@ export default function SummaryDashboard({
                 <p className="summary-empty">No significant changes</p>
               )}
 
+              {hasTrendMovers && !explainService && (
+                <div className="summary-explain-empty" role="status">
+                  <p className="summary-explain-empty-copy">
+                    Pick a service to see which accounts/tags drove the change.
+                  </p>
+                  <div className="summary-explain-picks">
+                    {explainPickServices.map((t) => (
+                      <button
+                        key={t.service}
+                        type="button"
+                        className="summary-explain-pick"
+                        onClick={() => loadExplain(t.service)}
+                      >
+                        {t.display_name || formatServiceName(t.service)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {explainService && (
                 <div className="summary-explain">
                   <div className="summary-explain-head">
@@ -366,16 +451,27 @@ export default function SummaryDashboard({
                       Why {explain?.display_name ?? formatServiceName(explainService)}
                       {explainLoading && <span className="summary-muted"> · fetching…</span>}
                     </div>
-                    {explain && (
-                      <span
-                        className={`summary-change-pill ${
-                          (explain.delta_usd ?? 0) >= 0 ? "up" : "down"
-                        }`}
-                        title="Change in total service spend"
+                    <div className="summary-explain-head-actions">
+                      {explain && (
+                        <span
+                          className={`summary-change-pill ${
+                            (explain.delta_usd ?? 0) >= 0 ? "up" : "down"
+                          }`}
+                          title="Change in total service spend"
+                        >
+                          {formatSignedCurrency(explain.delta_usd ?? 0)} ·{" "}
+                          {formatSignedPercent(explain.delta_percent)} vs prior
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        className="summary-explain-clear"
+                        onClick={clearExplain}
+                        aria-label="Clear service explanation"
                       >
-                        {formatPercent(explain.delta_percent)} vs prior
-                      </span>
-                    )}
+                        Clear
+                      </button>
+                    </div>
                   </div>
 
                   {explainError && <div className="error">{explainError}</div>}
@@ -463,7 +559,7 @@ export default function SummaryDashboard({
                                     a.delta_usd >= 0 ? "up" : "down"
                                   }`}
                                 >
-                                  {formatCurrency(a.delta_usd)}
+                                  {formatSignedCurrency(a.delta_usd)}
                                 </span>
                               </li>
                             ))}

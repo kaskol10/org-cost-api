@@ -7,6 +7,7 @@ import (
 	"github.com/kaskol10/org-cost-api/backend/internal/analysis"
 	"github.com/kaskol10/org-cost-api/backend/internal/aws/costexplorer"
 	"github.com/kaskol10/org-cost-api/backend/internal/aws/ec2volumes"
+	appconfig "github.com/kaskol10/org-cost-api/backend/internal/config"
 )
 
 // AskResponse is the answer to a natural-language cost question.
@@ -35,7 +36,7 @@ type AccountCostsResponse struct {
 
 // AccountCosts returns one account's costs from the cached dashboard.
 func (a *Aggregator) AccountCosts(ctx context.Context, account string, force bool) (*AccountCostsResponse, error) {
-	dash, err := a.dashboard(ctx, force)
+	dash, err := a.dashboard(ctx, force, appconfig.PeriodLookback)
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +75,7 @@ func (a *Aggregator) Ask(ctx context.Context, question string, force bool) (*Ask
 
 	switch route.Intent {
 	case analysis.AskIntentOrgSummary, analysis.AskIntentWaste:
-		dash, err := a.dashboard(ctx, force)
+		dash, err := a.dashboard(ctx, force, appconfig.PeriodLookback)
 		if err != nil {
 			return nil, err
 		}
@@ -86,7 +87,7 @@ func (a *Aggregator) Ask(ctx context.Context, question string, force bool) (*Ask
 		}
 
 	case analysis.AskIntentTrends:
-		trends, err := a.Trends(ctx, force)
+		trends, err := a.Trends(ctx, force, "")
 		if err != nil {
 			return nil, err
 		}
@@ -97,7 +98,7 @@ func (a *Aggregator) Ask(ctx context.Context, question string, force bool) (*Ask
 		}
 
 	case analysis.AskIntentSuggestions:
-		suggestions, err := a.Suggestions(ctx, force)
+		suggestions, err := a.Suggestions(ctx, force, "")
 		if err != nil {
 			return nil, err
 		}

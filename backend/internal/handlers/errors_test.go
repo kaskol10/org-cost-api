@@ -10,6 +10,17 @@ import (
 	"github.com/kaskol10/org-cost-api/backend/internal/service"
 )
 
+func TestWriteAPIErrorInvalidRequest(t *testing.T) {
+	rec := httptest.NewRecorder()
+	writeAPIError(rec, service.NewInvalidRequestError("invalid period"))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status %d, want 400", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "invalid period") {
+		t.Fatalf("body %q", rec.Body.String())
+	}
+}
+
 func TestWriteAPIErrorUnknownAccount(t *testing.T) {
 	rec := httptest.NewRecorder()
 	writeAPIError(rec, service.NewUnknownAccountError("missing"))

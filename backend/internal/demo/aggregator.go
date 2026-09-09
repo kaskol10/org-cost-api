@@ -20,8 +20,8 @@ func NewAggregator(cfg *appconfig.Config) (*service.Aggregator, error) {
 	dash := Dashboard(cfg)
 	agg := service.NewTestAggregator(cfg, dash)
 	agg.SetDemoMode(true)
-	agg.SetDemoRefresh(func() *service.DashboardResponse {
-		return Dashboard(cfg)
+	agg.SetDemoRefresh(func(start, end string) *service.DashboardResponse {
+		return DashboardForRange(cfg, start, end)
 	})
 
 	histDir := cfg.HistoryDir

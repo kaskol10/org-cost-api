@@ -98,6 +98,7 @@ paths:
       summary: Period-over-period trends
       parameters:
         - $ref: "#/components/parameters/refresh"
+        - $ref: "#/components/parameters/period"
       responses:
         "200":
           description: Trends payload
@@ -105,6 +106,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TrendsResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "500":
@@ -114,6 +117,7 @@ paths:
       summary: Cost optimization suggestions
       parameters:
         - $ref: "#/components/parameters/refresh"
+        - $ref: "#/components/parameters/period"
       responses:
         "200":
           description: Suggestions payload
@@ -121,6 +125,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SuggestionsResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "500":
@@ -130,6 +136,7 @@ paths:
       summary: Dashboard + trends + suggestions bundle
       parameters:
         - $ref: "#/components/parameters/refresh"
+        - $ref: "#/components/parameters/period"
       responses:
         "200":
           description: Report bundle
@@ -137,6 +144,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ReportResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "500":
@@ -345,6 +354,17 @@ components:
         value except "0", "false", or empty (uses cache when available).
       schema:
         type: string
+    period:
+      name: period
+      in: query
+      description: >
+        Cost window preset. "30d" (default) uses cost_lookback_days trailing window;
+        "mtd" is calendar month-to-date. Prior period is an equal apples-to-apples
+        comparison (immediate prior window for 30d; same days last month for mtd).
+      schema:
+        type: string
+        enum: [30d, mtd, lookback]
+        default: 30d
   responses:
     Unauthorized:
       description: Missing or invalid bearer token
@@ -540,6 +560,26 @@ components:
           enum: [up, down, new, stable]
         current_share_pct:
           type: number
+    AccountTrend:
+      type: object
+      properties:
+        account_id:
+          type: string
+        account_name:
+          type: string
+        current_usd:
+          type: number
+        prior_usd:
+          type: number
+        change_usd:
+          type: number
+        change_percent:
+          type: number
+        direction:
+          type: string
+          enum: [up, down, new, stable]
+        current_share_pct:
+          type: number
     ChangeSummary:
       type: object
       properties:
@@ -557,6 +597,10 @@ components:
         generated_at:
           type: string
           format: date-time
+        period:
+          type: string
+          description: Active period preset (30d or mtd)
+          enum: [30d, mtd]
         current_period:
           $ref: "#/components/schemas/PeriodSummary"
         prior_period:
@@ -579,6 +623,18 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ServiceTrend"
+        account_trends:
+          type: array
+          items:
+            $ref: "#/components/schemas/AccountTrend"
+        top_account_increases:
+          type: array
+          items:
+            $ref: "#/components/schemas/AccountTrend"
+        top_account_decreases:
+          type: array
+          items:
+            $ref: "#/components/schemas/AccountTrend"
         history_note:
           type: string
         snapshot_count:

@@ -41,6 +41,7 @@ type PriorCache struct {
 	PeriodEnd   string          `json:"period_end"`
 	FetchedAt   string          `json:"fetched_at"`
 	Services    []ServiceAmount `json:"services"`
+	Accounts    []AccountAmount `json:"accounts,omitempty"`
 	OrgTotal    float64         `json:"org_total"`
 	Source      string          `json:"source"`
 }

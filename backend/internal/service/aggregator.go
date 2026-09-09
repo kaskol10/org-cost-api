@@ -43,8 +43,8 @@ type Aggregator struct {
 
 	demoMode bool
 
-	// demoRefresh rebuilds fixture dashboard data (demo mode only).
-	demoRefresh func() *DashboardResponse
+	// demoRefresh rebuilds fixture dashboard data for a date range (demo mode only).
+	demoRefresh func(start, end string) *DashboardResponse
 }
 
 // SetDemoMode marks the aggregator as serving fixture data only.
@@ -58,7 +58,7 @@ func (a *Aggregator) DemoMode() bool {
 }
 
 // SetDemoRefresh sets the fixture rebuild function for demo mode.
-func (a *Aggregator) SetDemoRefresh(fn func() *DashboardResponse) {
+func (a *Aggregator) SetDemoRefresh(fn func(start, end string) *DashboardResponse) {
 	a.demoRefresh = fn
 }
 
@@ -230,19 +230,36 @@ func (a *Aggregator) resolveCostClient(client *awsclient.AccountClients) (*ceapi
 }
 
 func (a *Aggregator) Dashboard(ctx context.Context) (*DashboardResponse, error) {
-	return a.dashboard(ctx, false)
+	return a.dashboard(ctx, false, appconfig.PeriodLookback)
 }
 
 func (a *Aggregator) DashboardFresh(ctx context.Context) (*DashboardResponse, error) {
-	return a.dashboard(ctx, true)
+	return a.dashboard(ctx, true, appconfig.PeriodLookback)
 }
 
-func (a *Aggregator) dashboard(ctx context.Context, force bool) (*DashboardResponse, error) {
-	if a.demoMode && a.demoRefresh != nil {
-		return a.demoDashboard(ctx, force)
+// DashboardForPeriod returns the org dashboard for a period mode (30d or mtd).
+func (a *Aggregator) DashboardForPeriod(ctx context.Context, force bool, period string) (*DashboardResponse, error) {
+	mode, err := parsePeriodMode(period)
+	if err != nil {
+		return nil, err
 	}
-	start, end := a.cfg.CostDateRange()
-	key := start + ":" + end
+	return a.dashboard(ctx, force, mode)
+}
+
+func parsePeriodMode(period string) (appconfig.PeriodMode, error) {
+	mode, err := appconfig.ParsePeriod(period)
+	if err != nil {
+		return "", NewInvalidRequestError(err.Error())
+	}
+	return mode, nil
+}
+
+func (a *Aggregator) dashboard(ctx context.Context, force bool, mode appconfig.PeriodMode) (*DashboardResponse, error) {
+	if a.demoMode && a.demoRefresh != nil {
+		return a.demoDashboard(ctx, force, mode)
+	}
+	start, end := a.cfg.CostDateRangeFor(mode)
+	key := string(mode) + ":" + start + ":" + end
 
 	a.cacheMu.Lock()
 	if !force && a.cachedDash != nil && a.cachedDashKey == key && time.Since(a.cachedDashAt) < a.cacheTTL {
@@ -285,9 +302,9 @@ func (a *Aggregator) dashboard(ctx context.Context, force bool) (*DashboardRespo
 	return &out, nil
 }
 
-func (a *Aggregator) demoDashboard(ctx context.Context, force bool) (*DashboardResponse, error) {
-	start, end := a.cfg.CostDateRange()
-	key := start + ":" + end
+func (a *Aggregator) demoDashboard(ctx context.Context, force bool, mode appconfig.PeriodMode) (*DashboardResponse, error) {
+	start, end := a.cfg.CostDateRangeFor(mode)
+	key := string(mode) + ":" + start + ":" + end
 
 	a.cacheMu.Lock()
 	if !force && a.cachedDash != nil && a.cachedDashKey == key && time.Since(a.cachedDashAt) < a.cacheTTL {
@@ -305,7 +322,7 @@ func (a *Aggregator) demoDashboard(ctx context.Context, force bool) (*DashboardR
 		}
 	}
 
-	dash := a.demoRefresh()
+	dash := a.demoRefresh(start, end)
 	if dash == nil {
 		return nil, fmt.Errorf("demo fixture unavailable")
 	}

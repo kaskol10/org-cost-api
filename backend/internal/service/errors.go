@@ -5,6 +5,26 @@ import (
 	"fmt"
 )
 
+// ErrInvalidRequest is returned for bad query parameters.
+var ErrInvalidRequest = errors.New("invalid request")
+
+// InvalidRequestError carries a client-facing validation message.
+type InvalidRequestError struct {
+	Message string
+}
+
+func (e *InvalidRequestError) Error() string {
+	return e.Message
+}
+
+func (e *InvalidRequestError) Is(target error) bool {
+	return target == ErrInvalidRequest
+}
+
+func NewInvalidRequestError(msg string) error {
+	return &InvalidRequestError{Message: msg}
+}
+
 // ErrUnknownAccount is returned when an account name or id is not configured.
 var ErrUnknownAccount = errors.New("unknown account")
 

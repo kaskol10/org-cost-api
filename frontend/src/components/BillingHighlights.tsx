@@ -25,7 +25,7 @@ export default function BillingHighlights({ highlights, onAskAbout, compact }: P
       <div className="billing-highlights-head">
         <h2>{compact ? "Quick highlights" : "What stands out"}</h2>
         <p className="billing-highlights-hint">
-          Tap <strong>Ask about this</strong> to start a conversation on any topic.
+          Tap a card or <strong>Ask about this</strong> to start a conversation.
         </p>
       </div>
       <div className="billing-highlights-grid">
@@ -33,6 +33,15 @@ export default function BillingHighlights({ highlights, onAskAbout, compact }: P
           <article
             key={h.id}
             className={`billing-highlight-card billing-highlight-${h.kind}`}
+            role="button"
+            tabIndex={0}
+            onClick={() => onAskAbout(h.askQuestion)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onAskAbout(h.askQuestion);
+              }
+            }}
           >
             <span className={`billing-highlight-kind billing-highlight-kind-${h.kind}`}>
               {KIND_LABEL[h.kind]}
@@ -43,7 +52,10 @@ export default function BillingHighlights({ highlights, onAskAbout, compact }: P
             <button
               type="button"
               className="btn btn-ghost billing-highlight-ask"
-              onClick={() => onAskAbout(h.askQuestion)}
+              onClick={(e) => {
+                e.stopPropagation();
+                onAskAbout(h.askQuestion);
+              }}
             >
               Ask about this →
             </button>

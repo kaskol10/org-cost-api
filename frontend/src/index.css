@@ -152,7 +152,7 @@ h1, h2, h3 {
   align-items: flex-end;
   justify-content: space-between;
   gap: 1rem;
-  margin-bottom: 2rem;
+  margin-bottom: 1rem;
 }
 
 .header h1 {
@@ -164,6 +164,114 @@ h1, h2, h3 {
   margin: 0.35rem 0 0;
   color: var(--muted);
   font-size: 0.95rem;
+}
+
+.header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.cost-context-bar {
+  position: sticky;
+  top: 0;
+  z-index: 90; /* under .demo-banner (100) */
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem 1.25rem;
+  margin: -0.5rem 0 1rem;
+  padding: 0.65rem 0.9rem;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+/* Sit below sticky demo banner when present */
+body:has(.demo-banner) .cost-context-bar {
+  top: 2.75rem;
+}
+
+.cost-context-main {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.cost-context-eyebrow {
+  margin: 0;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  font-weight: 600;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.cost-context-demo-chip {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.cost-context-total-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+  margin-top: 0.2rem;
+}
+
+.cost-context-total {
+  margin: 0;
+  font-size: 1.85rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+
+.cost-context-total.muted {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.cost-context-total.is-updating {
+  opacity: 0.72;
+}
+
+.cost-context-meta {
+  margin: 0.35rem 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.cost-context-updating {
+  margin: 0.35rem 0 0;
+  font-size: 0.8rem;
+  color: var(--accent);
+}
+
+.cost-context-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.summary-hero-compact .summary-meta {
+  margin-top: 0.25rem;
 }
 
 /* —— Summary dashboard (hero) —— */
@@ -191,6 +299,39 @@ h1, h2, h3 {
   letter-spacing: 0.08em;
   color: var(--muted);
   font-weight: 600;
+}
+
+.period-toggle {
+  display: inline-flex;
+  padding: 0.15rem;
+  gap: 0.15rem;
+  background: color-mix(in srgb, var(--border) 55%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+.period-toggle-btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  cursor: pointer;
+  line-height: 1.2;
+}
+
+.period-toggle-btn:hover {
+  color: var(--text);
+}
+
+.period-toggle-btn.active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 2px color-mix(in srgb, #000 12%, transparent);
 }
 
 .summary-total {
@@ -265,6 +406,11 @@ h1, h2, h3 {
   color: var(--accent-dim);
 }
 
+.summary-change-pill.flat {
+  background: var(--surface-2);
+  color: var(--muted);
+}
+
 .summary-change-pill.loading {
   background: var(--surface-2);
   color: var(--muted);
@@ -300,6 +446,31 @@ h1, h2, h3 {
 
 .summary-trend-item {
   font-size: 0.88rem;
+}
+
+.summary-trend-btn {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.summary-trend-btn:hover {
+  background: rgba(61, 214, 198, 0.06);
+  border-color: rgba(61, 214, 198, 0.22);
+}
+
+.summary-trend-btn:focus-visible {
+  outline: 2px solid var(--accent-dim);
+  outline-offset: 1px;
 }
 
 .summary-trend-delta {
@@ -342,6 +513,51 @@ h1, h2, h3 {
   margin: 0;
   font-size: 0.9rem;
   color: var(--muted);
+}
+
+.summary-explain-empty {
+  margin: 0.85rem 0 0;
+  padding: 0.65rem 0.75rem;
+  background: var(--surface-2);
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+}
+
+.summary-explain-empty-copy {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.summary-explain-picks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.55rem;
+}
+
+.summary-explain-pick {
+  margin: 0;
+  padding: 0.35rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.summary-explain-pick:hover {
+  border-color: var(--accent-dim);
+  color: var(--accent);
+}
+
+.summary-explain-pick:focus-visible {
+  outline: 2px solid var(--accent-dim);
+  outline-offset: 1px;
 }
 
 .summary-bar-list {
@@ -444,15 +660,9 @@ h1, h2, h3 {
   font-weight: 500;
 }
 
-.summary-trend-clickable {
-  transition: background 120ms ease, border-color 120ms ease;
-}
-
-.summary-trend-active {
+.summary-trend-active .summary-trend-btn {
   background: rgba(61, 214, 198, 0.08);
-  border: 1px solid rgba(61, 214, 198, 0.25);
-  border-radius: 10px;
-  padding: 0.35rem 0.45rem;
+  border-color: rgba(61, 214, 198, 0.25);
 }
 
 .summary-explain {
@@ -470,6 +680,30 @@ h1, h2, h3 {
   justify-content: space-between;
   gap: 0.75rem;
   margin-bottom: 0.35rem;
+}
+
+.summary-explain-head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.summary-explain-clear {
+  margin: 0;
+  padding: 0.25rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.summary-explain-clear:hover {
+  color: var(--text);
+  border-color: var(--muted);
 }
 
 .summary-explain-title {
@@ -565,6 +799,78 @@ h1, h2, h3 {
 
 .details-toggle-row {
   margin-bottom: 1.25rem;
+}
+
+.top-accounts-strip {
+  margin: 0 0 1.25rem;
+  padding: 0.85rem 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.top-accounts-strip-title {
+  margin: 0 0 0.65rem;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.top-accounts-strip-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.top-accounts-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.55rem;
+  max-width: 100%;
+  padding: 0.4rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.88rem;
+  cursor: pointer;
+  text-align: left;
+}
+
+.top-accounts-chip:hover {
+  border-color: var(--accent-dim);
+  color: var(--accent);
+}
+
+.top-accounts-chip-name {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 12rem;
+}
+
+.top-accounts-chip-amount {
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  font-size: 0.82rem;
+  flex-shrink: 0;
+}
+
+.top-accounts-chip-amount.up {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.top-accounts-chip-amount.down {
+  color: var(--accent-dim);
+  font-weight: 600;
 }
 
 .details-toggle-hint {
@@ -1040,6 +1346,10 @@ td.amount {
   margin-bottom: 1.5rem;
 }
 
+.tab-panel-hidden {
+  display: none;
+}
+
 .tab {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -1094,6 +1404,18 @@ td.amount {
   border: 1px solid var(--border);
   border-radius: 12px;
   border-left: 3px solid var(--accent-dim);
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+
+.billing-highlight-card:hover {
+  border-color: color-mix(in srgb, var(--accent-dim) 40%, var(--border));
+  background: color-mix(in srgb, var(--surface-2) 85%, var(--accent) 8%);
+}
+
+.billing-highlight-card:focus-visible {
+  outline: 2px solid var(--accent-dim);
+  outline-offset: 2px;
 }
 
 .billing-highlight-spend {
@@ -1523,7 +1845,26 @@ td.amount {
   border-radius: 999px;
   border: 1px solid var(--border);
   background: var(--surface);
+  color: inherit;
+  font: inherit;
   font-size: 0.8rem;
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease, box-shadow 120ms ease;
+}
+
+.suggestions-category-chip:hover {
+  border-color: color-mix(in srgb, var(--suggestion-accent, var(--accent-dim)) 55%, var(--border));
+}
+
+.suggestions-category-chip.active {
+  border-color: color-mix(in srgb, var(--suggestion-accent, var(--accent-dim)) 70%, var(--border));
+  background: color-mix(in srgb, var(--suggestion-accent, var(--accent)) 14%, var(--surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--suggestion-accent, var(--accent-dim)) 35%, transparent);
+}
+
+.suggestions-category-chip:focus-visible {
+  outline: 2px solid var(--accent-dim);
+  outline-offset: 1px;
 }
 
 .suggestions-category-chip-label {

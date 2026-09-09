@@ -60,12 +60,28 @@ describe("apiHeaders / fetchReport auth", () => {
     await fetchReport();
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "https://cost.example.com/api/report",
+      "https://cost.example.com/api/report?period=30d",
       expect.objectContaining({
         headers: expect.objectContaining({
           Authorization: "Bearer secret-token",
         }),
       })
+    );
+  });
+
+  it("includes period query on fetchReport", async () => {
+    vi.stubEnv("VITE_API_URL", "https://cost.example.com");
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ dashboard: null }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await fetchReport("mtd");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://cost.example.com/api/report?period=mtd",
+      expect.anything()
     );
   });
 });

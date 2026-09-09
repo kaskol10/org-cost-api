@@ -41,6 +41,14 @@ type accountFixture struct {
 // Dashboard builds a rich fixture dashboard for demo mode.
 func Dashboard(cfg *appconfig.Config) *service.DashboardResponse {
 	start, end := cfg.CostDateRange()
+	return DashboardForRange(cfg, start, end)
+}
+
+// DashboardForRange builds a fixture dashboard for an explicit date window.
+func DashboardForRange(cfg *appconfig.Config, start, end string) *service.DashboardResponse {
+	if start == "" || end == "" {
+		start, end = cfg.CostDateRange()
+	}
 	fixtures := []accountFixture{
 		{
 			id: "111111111111", name: "production", total: 48200,
@@ -192,18 +200,7 @@ func PriorSnapshot(dash *service.DashboardResponse) history.Snapshot {
 }
 
 func priorPeriod(start, end string) (string, string) {
-	startT, err := time.Parse("2006-01-02", start)
-	if err != nil {
-		return start, end
-	}
-	endT, err := time.Parse("2006-01-02", end)
-	if err != nil {
-		return start, end
-	}
-	days := int(endT.Sub(startT).Hours()/24) + 1
-	priorEnd := startT.AddDate(0, 0, -1)
-	priorStart := priorEnd.AddDate(0, 0, -(days - 1))
-	return priorStart.Format("2006-01-02"), priorEnd.Format("2006-01-02")
+	return appconfig.PriorPeriodFor(appconfig.PeriodLookback, start, end)
 }
 
 // SeedHistory writes a prior-period snapshot so trends work without AWS.

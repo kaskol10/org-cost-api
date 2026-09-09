@@ -56,7 +56,7 @@ export default function AccountCard({ account }: Props) {
 
   if (account.error) {
     return (
-      <article className="account-card">
+      <article className="account-card" id={`account-${account.account_id}`}>
         <header>
           <div>
             <h3>{account.account_name}</h3>
@@ -97,7 +97,7 @@ export default function AccountCard({ account }: Props) {
     .join(" · ");
 
   return (
-    <article className="account-card">
+    <article className="account-card" id={`account-${account.account_id}`}>
       <header>
         <div>
           <h3>{account.account_name}</h3>

@@ -73,7 +73,7 @@ describe("buildBillingHighlights", () => {
   });
 
   it("builds spend, trend, concentration, waste, spike, and savings highlights", () => {
-    const items = buildBillingHighlights(DASHBOARD, TRENDS, SUGGESTIONS);
+    const items = buildBillingHighlights(DASHBOARD, TRENDS, SUGGESTIONS, "mtd");
     const ids = items.map((h) => h.id);
     expect(ids).toContain("org-spend");
     expect(ids).toContain("org-trend");
@@ -82,6 +82,16 @@ describe("buildBillingHighlights", () => {
     expect(ids).toContain("spike-AmazonRedshift");
     expect(ids).toContain("saving-ebs-waste");
     expect(items.length).toBeLessThanOrEqual(6);
+
+    const trend = items.find((h) => h.id === "org-trend")!;
+    expect(trend.title).toBe("Higher spend");
+    expect(trend.value).toContain("+$");
+    expect(trend.detail).toContain("vs same days last month");
+
+    const savings = items.find((h) => h.id === "saving-ebs-waste")!;
+    expect(savings.detail).toMatch(/potential/i);
+    expect(savings.detail).toMatch(/not yet realized/i);
+
     for (const item of items) {
       expect(item.askQuestion.length).toBeGreaterThan(10);
     }

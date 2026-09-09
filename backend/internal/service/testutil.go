@@ -45,7 +45,7 @@ func NewTestAggregator(cfg *appconfig.Config, dash *DashboardResponse) *Aggregat
 	if dash != nil {
 		agg.cachedDash = dash
 		agg.cachedDashAt = time.Now()
-		agg.cachedDashKey = dash.Start + ":" + dash.End
+		agg.cachedDashKey = string(appconfig.PeriodLookback) + ":" + dash.Start + ":" + dash.End
 	}
 	return agg
 }

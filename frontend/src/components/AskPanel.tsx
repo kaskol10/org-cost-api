@@ -7,9 +7,9 @@ const MCP_SETUP_URL =
   "https://github.com/kaskol10/org-cost-api/blob/main/docs/mcp-setup.md";
 
 const SUGGESTED_PROMPTS = [
+  "What got more expensive?",
+  "Where can we cut this month?",
   "What are our top cost drivers?",
-  "Where can we save money?",
-  "How did spend change vs last month?",
   "Any unattached EBS volumes?",
 ];
 

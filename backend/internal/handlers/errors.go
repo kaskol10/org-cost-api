@@ -9,6 +9,11 @@ import (
 )
 
 func writeAPIError(w http.ResponseWriter, err error) {
+	var invalid *service.InvalidRequestError
+	if errors.As(err, &invalid) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": invalid.Message})
+		return
+	}
 	var unknown *service.UnknownAccountError
 	if errors.As(err, &unknown) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "unknown account"})

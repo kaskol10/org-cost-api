@@ -270,17 +270,34 @@ export interface ServiceTrend {
   current_share_pct?: number;
 }
 
+export interface AccountTrend {
+  account_id: string;
+  account_name: string;
+  current_usd: number;
+  prior_usd: number;
+  change_usd: number;
+  change_percent: number;
+  direction: string;
+  current_share_pct?: number;
+}
+
 export interface TrendsResponse {
   generated_at: string;
+  period?: "30d" | "mtd" | string;
   current_period: PeriodSummary;
   prior_period: PeriodSummary;
   prior_source: string;
   ce_calls_used: number;
   org_total: ChangeSummary;
+  service_trends?: ServiceTrend[];
   top_increases: ServiceTrend[];
   top_decreases: ServiceTrend[];
+  account_trends?: AccountTrend[];
+  top_account_increases?: AccountTrend[];
+  top_account_decreases?: AccountTrend[];
   history_note?: string;
   snapshot_count?: number;
+  refresh_allowed?: boolean;
 }
 
 export interface Suggestion {

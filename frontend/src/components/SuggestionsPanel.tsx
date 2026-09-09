@@ -1,3 +1,4 @@
+import { useMemo, useState } from "react";
 import Markdown from "./Markdown";
 import type { SuggestionsResponse } from "../types";
 import { formatCurrency } from "../utils/format";
@@ -6,6 +7,7 @@ import {
   groupSuggestionsByCategory,
   normalizeCategory,
   summarizeSuggestions,
+  type SuggestionCategory,
 } from "../utils/suggestions";
 
 interface Props {
@@ -15,6 +17,8 @@ interface Props {
   onAskAbout?: (question: string) => void;
 }
 
+type CategoryFilter = "all" | SuggestionCategory;
+
 function suggestionAskQuestion(title: string): string {
   return `Tell me more about this savings opportunity: "${title}". What should we do first and what's the impact?`;
 }
@@ -22,9 +26,9 @@ function suggestionAskQuestion(title: string): string {
 function SavingsBadge({ amount }: { amount: number | undefined }) {
   if (amount != null && amount > 0) {
     return (
-      <span className="suggestion-savings-badge">
-        ~{formatCurrency(amount)}
-        <span className="suggestion-savings-period">/mo</span>
+      <span className="suggestion-savings-badge" title="Estimated monthly savings if acted on — not yet realized">
+        Est. ~{formatCurrency(amount)}
+        <span className="suggestion-savings-period">/mo potential</span>
       </span>
     );
   }
@@ -37,6 +41,20 @@ export default function SuggestionsPanel({
   enriching,
   onAskAbout,
 }: Props) {
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
+
+  const summary = useMemo(
+    () => (suggestions ? summarizeSuggestions(suggestions.suggestions) : null),
+    [suggestions]
+  );
+
+  const groups = useMemo(() => {
+    if (!suggestions) return [];
+    const all = groupSuggestionsByCategory(suggestions.suggestions);
+    if (categoryFilter === "all") return all;
+    return all.filter((g) => g.category.category === categoryFilter);
+  }, [suggestions, categoryFilter]);
+
   if (loading) {
     return (
       <section className="panel suggestions-panel">
@@ -46,12 +64,9 @@ export default function SuggestionsPanel({
     );
   }
 
-  if (!suggestions || suggestions.suggestions.length === 0) {
+  if (!suggestions || suggestions.suggestions.length === 0 || !summary) {
     return null;
   }
-
-  const summary = summarizeSuggestions(suggestions.suggestions);
-  const groups = groupSuggestionsByCategory(suggestions.suggestions);
 
   return (
     <section className="panel suggestions-panel" aria-label="Cost savings opportunities">
@@ -59,7 +74,9 @@ export default function SuggestionsPanel({
         <div>
           <h2>Cost savings opportunities</h2>
           {suggestions.period && (
-            <p className="suggestions-period">Period: {suggestions.period}</p>
+            <p className="suggestions-period">
+              Estimates for {suggestions.period.replace(/_/g, " ")} · potential only
+            </p>
           )}
         </div>
         <div className="suggestions-header-badges">
@@ -76,12 +93,12 @@ export default function SuggestionsPanel({
 
       <div className="suggestions-summary-bar" role="region" aria-label="Savings summary">
         <div className="suggestions-kpi suggestions-kpi-primary">
-          <span className="suggestions-kpi-label">Quantified savings</span>
+          <span className="suggestions-kpi-label">Potential savings</span>
           <span className="suggestions-kpi-value">
             {summary.quantifiedCount > 0 ? (
               <>
-                ~{formatCurrency(summary.totalQuantifiedSavingsUsd)}
-                <span className="suggestions-kpi-sub">/month</span>
+                Est. ~{formatCurrency(summary.totalQuantifiedSavingsUsd)}
+                <span className="suggestions-kpi-sub">/mo</span>
               </>
             ) : (
               <span className="suggestions-kpi-muted">—</span>
@@ -89,7 +106,7 @@ export default function SuggestionsPanel({
           </span>
           <span className="suggestions-kpi-hint">
             {summary.quantifiedCount > 0
-              ? `${summary.quantifiedCount} of ${summary.totalCount} items with $ estimates`
+              ? `${summary.quantifiedCount} of ${summary.totalCount} items with $ estimates · not yet realized`
               : "No dollar estimates — review trends & waste below"}
           </span>
         </div>
@@ -97,21 +114,41 @@ export default function SuggestionsPanel({
           <span className="suggestions-kpi-label">Opportunities</span>
           <span className="suggestions-kpi-value">{summary.totalCount}</span>
         </div>
-        <div className="suggestions-category-chips" aria-label="By category">
+        <div className="suggestions-category-chips" role="group" aria-label="Filter by category">
+          <button
+            type="button"
+            className={`suggestions-category-chip suggestions-category-chip-all ${
+              categoryFilter === "all" ? "active" : ""
+            }`}
+            aria-pressed={categoryFilter === "all"}
+            onClick={() => setCategoryFilter("all")}
+          >
+            <span className="suggestions-category-chip-label">All</span>
+            <span className="suggestions-category-chip-count">{summary.totalCount}</span>
+          </button>
           {summary.byCategory.map((cat) => (
-            <div
+            <button
               key={cat.category}
-              className={`suggestions-category-chip ${cat.cssClass}`}
+              type="button"
+              className={`suggestions-category-chip ${cat.cssClass} ${
+                categoryFilter === cat.category ? "active" : ""
+              }`}
               title={cat.hint}
+              aria-pressed={categoryFilter === cat.category}
+              onClick={() =>
+                setCategoryFilter((prev) =>
+                  prev === cat.category ? "all" : cat.category
+                )
+              }
             >
               <span className="suggestions-category-chip-label">{cat.label}</span>
               <span className="suggestions-category-chip-count">{cat.count}</span>
               {cat.quantifiedSavingsUsd > 0 && (
                 <span className="suggestions-category-chip-savings">
-                  ~{formatCurrency(cat.quantifiedSavingsUsd)}/mo
+                  Est. ~{formatCurrency(cat.quantifiedSavingsUsd)}/mo
                 </span>
               )}
-            </div>
+            </button>
           ))}
         </div>
       </div>
@@ -123,6 +160,9 @@ export default function SuggestionsPanel({
       )}
 
       <div className="suggestions-groups">
+        {groups.length === 0 && (
+          <p className="summary-empty">No opportunities in this category.</p>
+        )}
         {groups.map(({ category, items }) => (
           <section
             key={category.category}
@@ -211,7 +251,7 @@ export default function SuggestionsPanel({
                           className="btn btn-ghost suggestion-ask-btn"
                           onClick={() => onAskAbout(suggestionAskQuestion(item.title))}
                         >
-                          Know more about this →
+                          Ask about this →
                         </button>
                       )}
                     </div>

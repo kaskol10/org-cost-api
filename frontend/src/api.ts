@@ -51,14 +51,18 @@ export async function fetchMeta(): Promise<{ demo: boolean }> {
   return res.json();
 }
 
-export async function fetchReport(): Promise<ReportResponse> {
-  const res = await fetch(apiUrl("/api/report"), { headers: apiHeaders() });
+export type PeriodPreset = "30d" | "mtd";
+
+export async function fetchReport(period: PeriodPreset = "30d"): Promise<ReportResponse> {
+  const q = new URLSearchParams({ period });
+  const res = await fetch(apiUrl(`/api/report?${q}`), { headers: apiHeaders() });
   if (!res.ok) await parseError(res);
   return res.json();
 }
 
-export async function fetchReportFresh(): Promise<ReportResponse> {
-  const res = await fetch(apiUrl("/api/report?refresh=1"), { headers: apiHeaders() });
+export async function fetchReportFresh(period: PeriodPreset = "30d"): Promise<ReportResponse> {
+  const q = new URLSearchParams({ period, refresh: "1" });
+  const res = await fetch(apiUrl(`/api/report?${q}`), { headers: apiHeaders() });
   if (!res.ok) await parseError(res);
   return res.json();
 }

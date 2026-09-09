@@ -4,6 +4,7 @@ import (
 	"math"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/kaskol10/org-cost-api/backend/internal/history"
 )
@@ -22,6 +23,18 @@ type ServiceTrend struct {
 	CurrentSharePct float64 `json:"current_share_pct,omitempty"`
 }
 
+// AccountTrend is period-over-period change for one linked account.
+type AccountTrend struct {
+	AccountID       string  `json:"account_id"`
+	AccountName     string  `json:"account_name"`
+	CurrentUSD      float64 `json:"current_usd"`
+	PriorUSD        float64 `json:"prior_usd"`
+	ChangeUSD       float64 `json:"change_usd"`
+	ChangePercent   float64 `json:"change_percent"`
+	Direction       string  `json:"direction"` // up, down, new, stable
+	CurrentSharePct float64 `json:"current_share_pct,omitempty"`
+}
+
 // PeriodSummary describes a comparison window.
 type PeriodSummary struct {
 	Start string `json:"start"`
@@ -31,18 +44,22 @@ type PeriodSummary struct {
 
 // TrendsResponse compares current vs prior period using dashboard + history.
 type TrendsResponse struct {
-	GeneratedAt    string         `json:"generated_at"`
-	CurrentPeriod  PeriodSummary  `json:"current_period"`
-	PriorPeriod    PeriodSummary  `json:"prior_period"`
-	PriorSource    string         `json:"prior_source"`
-	CECallsUsed    int            `json:"ce_calls_used"`
-	OrgTotal       ChangeSummary  `json:"org_total"`
-	ServiceTrends  []ServiceTrend `json:"service_trends"`
-	TopIncreases   []ServiceTrend `json:"top_increases"`
-	TopDecreases   []ServiceTrend `json:"top_decreases"`
-	HistoryNote      string         `json:"history_note,omitempty"`
-	SnapshotCount    int            `json:"snapshot_count,omitempty"`
-	RefreshAllowed   bool           `json:"refresh_allowed,omitempty"`
+	GeneratedAt         string         `json:"generated_at"`
+	Period              string         `json:"period,omitempty"` // 30d | mtd
+	CurrentPeriod       PeriodSummary  `json:"current_period"`
+	PriorPeriod         PeriodSummary  `json:"prior_period"`
+	PriorSource         string         `json:"prior_source"`
+	CECallsUsed         int            `json:"ce_calls_used"`
+	OrgTotal            ChangeSummary  `json:"org_total"`
+	ServiceTrends       []ServiceTrend `json:"service_trends"`
+	TopIncreases        []ServiceTrend `json:"top_increases"`
+	TopDecreases        []ServiceTrend `json:"top_decreases"`
+	AccountTrends       []AccountTrend `json:"account_trends"`
+	TopAccountIncreases []AccountTrend `json:"top_account_increases"`
+	TopAccountDecreases []AccountTrend `json:"top_account_decreases"`
+	HistoryNote         string         `json:"history_note,omitempty"`
+	SnapshotCount       int            `json:"snapshot_count,omitempty"`
+	RefreshAllowed      bool           `json:"refresh_allowed,omitempty"`
 }
 
 type ChangeSummary struct {
@@ -52,22 +69,31 @@ type ChangeSummary struct {
 	ChangePercent float64 `json:"change_percent"`
 }
 
-// BuildTrends compares current dashboard services to prior period map.
+// BuildTrends compares current dashboard services/accounts to prior period maps.
 func BuildTrends(
 	dash DashboardView,
 	priorServices map[string]float64,
+	priorAccounts map[string]float64,
 	priorOrgTotal float64,
 	priorSource string,
 	ceCalls int,
 	historyNote string,
 	snapshotCount int,
 ) *TrendsResponse {
+	if priorServices == nil {
+		priorServices = map[string]float64{}
+	}
+	if priorAccounts == nil {
+		priorAccounts = map[string]float64{}
+	}
+
 	current := serviceMapFromDashboard(dash)
+	currentAccounts := accountMapFromDashboard(dash)
 	currentTotal := dash.Totals.OrgTotal
 
 	resp := &TrendsResponse{
 		GeneratedAt:   dash.GeneratedAt,
-		CurrentPeriod: PeriodSummary{Start: dash.Start, End: dash.End},
+		CurrentPeriod: PeriodSummary{Start: dash.Start, End: dash.End, Days: periodDays(dash.Start, dash.End)},
 		PriorSource:   priorSource,
 		CECallsUsed:   ceCalls,
 		HistoryNote:   historyNote,
@@ -107,22 +133,7 @@ func BuildTrends(
 		if currentTotal > 0 {
 			t.CurrentSharePct = (cur / currentTotal) * 100
 		}
-		switch {
-		case prior < 0.01 && cur >= minTrendUSD:
-			t.Direction = "new"
-			t.ChangePercent = 100
-		case prior >= minTrendUSD:
-			t.ChangePercent = ((cur - prior) / prior) * 100
-			if math.Abs(t.ChangePercent) < 5 {
-				t.Direction = "stable"
-			} else if t.ChangeUSD > 0 {
-				t.Direction = "up"
-			} else {
-				t.Direction = "down"
-			}
-		default:
-			t.Direction = "stable"
-		}
+		t.ChangePercent, t.Direction = trendDirection(cur, prior, t.ChangeUSD)
 		trends = append(trends, t)
 	}
 
@@ -132,7 +143,65 @@ func BuildTrends(
 	resp.ServiceTrends = trends
 	resp.TopIncreases = topByDirection(trends, "up", 10)
 	resp.TopDecreases = topByDirection(trends, "down", 10)
+
+	accountNames := accountNamesFromDashboard(dash)
+	allAccounts := make(map[string]struct{})
+	for id := range currentAccounts {
+		allAccounts[id] = struct{}{}
+	}
+	for id := range priorAccounts {
+		allAccounts[id] = struct{}{}
+	}
+
+	var accountTrends []AccountTrend
+	for id := range allAccounts {
+		cur := currentAccounts[id]
+		prior := priorAccounts[id]
+		if cur < 0.01 && prior < 0.01 {
+			continue
+		}
+		name := accountNames[id]
+		if name == "" {
+			name = id
+		}
+		t := AccountTrend{
+			AccountID:   id,
+			AccountName: name,
+			CurrentUSD:  cur,
+			PriorUSD:    prior,
+			ChangeUSD:   cur - prior,
+		}
+		if currentTotal > 0 {
+			t.CurrentSharePct = (cur / currentTotal) * 100
+		}
+		t.ChangePercent, t.Direction = trendDirection(cur, prior, t.ChangeUSD)
+		accountTrends = append(accountTrends, t)
+	}
+
+	sort.Slice(accountTrends, func(i, j int) bool {
+		return math.Abs(accountTrends[i].ChangeUSD) > math.Abs(accountTrends[j].ChangeUSD)
+	})
+	resp.AccountTrends = accountTrends
+	resp.TopAccountIncreases = topAccountByDirection(accountTrends, "up", 5)
+	resp.TopAccountDecreases = topAccountByDirection(accountTrends, "down", 5)
 	return resp
+}
+
+func trendDirection(cur, prior, changeUSD float64) (changePercent float64, direction string) {
+	switch {
+	case prior < 0.01 && cur >= minTrendUSD:
+		return 100, "new"
+	case prior >= minTrendUSD:
+		changePercent = ((cur - prior) / prior) * 100
+		if math.Abs(changePercent) < 5 {
+			return changePercent, "stable"
+		} else if changeUSD > 0 {
+			return changePercent, "up"
+		}
+		return changePercent, "down"
+	default:
+		return 0, "stable"
+	}
 }
 
 func serviceMapFromDashboard(dash DashboardView) map[string]float64 {
@@ -154,12 +223,46 @@ func serviceMapFromDashboard(dash DashboardView) map[string]float64 {
 	return out
 }
 
+func accountMapFromDashboard(dash DashboardView) map[string]float64 {
+	out := make(map[string]float64, len(dash.Accounts))
+	for _, acct := range dash.Accounts {
+		if acct.AccountID == "" {
+			continue
+		}
+		out[acct.AccountID] = acct.AllTotal
+	}
+	return out
+}
+
+func accountNamesFromDashboard(dash DashboardView) map[string]string {
+	out := make(map[string]string, len(dash.Accounts))
+	for _, acct := range dash.Accounts {
+		if acct.AccountID == "" {
+			continue
+		}
+		name := strings.TrimSpace(acct.AccountName)
+		if name == "" {
+			name = acct.AccountID
+		}
+		out[acct.AccountID] = name
+	}
+	return out
+}
+
 func PriorMapFromSnapshot(snap *history.Snapshot) (map[string]float64, float64) {
 	out := make(map[string]float64, len(snap.Services))
 	for _, s := range snap.Services {
 		out[s.Service] = s.Amount
 	}
 	return out, snap.OrgTotal
+}
+
+func PriorAccountMapFromSnapshot(snap *history.Snapshot) map[string]float64 {
+	out := make(map[string]float64, len(snap.Accounts))
+	for _, a := range snap.Accounts {
+		out[a.AccountID] = a.AllTotal
+	}
+	return out
 }
 
 func PriorMapFromCache(c *history.PriorCache) (map[string]float64, float64) {
@@ -170,8 +273,39 @@ func PriorMapFromCache(c *history.PriorCache) (map[string]float64, float64) {
 	return out, c.OrgTotal
 }
 
+func PriorAccountMapFromCache(c *history.PriorCache) map[string]float64 {
+	out := make(map[string]float64, len(c.Accounts))
+	for _, a := range c.Accounts {
+		out[a.AccountID] = a.AllTotal
+	}
+	return out
+}
+
 func topByDirection(trends []ServiceTrend, dir string, limit int) []ServiceTrend {
 	var out []ServiceTrend
+	for _, t := range trends {
+		if t.Direction != dir {
+			continue
+		}
+		if dir == "up" && t.ChangeUSD < minTrendUSD {
+			continue
+		}
+		out = append(out, t)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if dir == "up" {
+			return out[i].ChangePercent > out[j].ChangePercent
+		}
+		return out[i].ChangePercent < out[j].ChangePercent
+	})
+	if len(out) > limit {
+		out = out[:limit]
+	}
+	return out
+}
+
+func topAccountByDirection(trends []AccountTrend, dir string, limit int) []AccountTrend {
+	var out []AccountTrend
 	for _, t := range trends {
 		if t.Direction != dir {
 			continue
@@ -213,4 +347,17 @@ func friendlyService(service string) string {
 	default:
 		return s
 	}
+}
+
+func periodDays(start, end string) int {
+	s, err1 := time.Parse("2006-01-02", start)
+	e, err2 := time.Parse("2006-01-02", end)
+	if err1 != nil || err2 != nil {
+		return 0
+	}
+	days := int(e.Sub(s).Hours() / 24)
+	if days < 1 {
+		return 1
+	}
+	return days
 }
