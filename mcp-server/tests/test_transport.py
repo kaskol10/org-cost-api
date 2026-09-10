@@ -39,3 +39,15 @@ def test_main_streamable_http(mock_run, monkeypatch):
     monkeypatch.setenv("MCP_TRANSPORT", "streamable-http")
     server.main()
     mock_run.assert_called_once_with(transport="streamable-http")
+
+
+def test_allowed_hosts_from_env_expands_bare_hostname(monkeypatch):
+    monkeypatch.setenv("MCP_ALLOWED_HOSTS", "costs.internal.resiz.es")
+    hosts = server._expand_allowed_hosts(server._allowed_hosts_from_env())
+    assert "costs.internal.resiz.es" in hosts
+    assert "costs.internal.resiz.es:*" in hosts
+
+
+def test_allowed_hosts_from_env_empty(monkeypatch):
+    monkeypatch.delenv("MCP_ALLOWED_HOSTS", raising=False)
+    assert server._allowed_hosts_from_env() == []

@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.0.5] — 2026-09-10
+
+### Fixed
+
+- Streamable HTTP MCP behind Gateway API: allow public `Host` headers (`MCP_ALLOWED_HOSTS`, Helm `hostnames`) so `/mcp` no longer returns `421 Invalid Host header`
+
 ## [0.0.4] — 2026-09-10
 
 ### Added

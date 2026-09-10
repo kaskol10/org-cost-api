@@ -105,6 +105,7 @@ Docker: `docker compose -f docker-compose.chat.yml up --build`
 | `MCP_TRANSPORT` | `stdio` | `stdio`, `sse`, or `streamable-http` |
 | `MCP_HOST` | `127.0.0.1` | Bind address (`0.0.0.0` for HTTP transports) |
 | `MCP_PORT` | `8000` | Port for HTTP transports |
+| `MCP_ALLOWED_HOSTS` | (empty) | Comma-separated public Host headers for Streamable HTTP behind a proxy |
 
 ## Agent setup (Hermes / Cursor)
 

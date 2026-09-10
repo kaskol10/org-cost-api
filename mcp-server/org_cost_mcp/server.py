@@ -28,7 +28,92 @@ from org_cost_mcp.visualize import build_markdown_report, write_html_report
 
 apply_discovered_config()
 
-mcp = FastMCP(
+
+def _allowed_hosts_from_env() -> list[str]:
+    """Parse MCP_ALLOWED_HOSTS (comma-separated public Host headers)."""
+    raw = os.environ.get("MCP_ALLOWED_HOSTS", "").strip()
+    if not raw:
+        return []
+    return [item.strip() for item in raw.split(",") if item.strip()]
+
+
+def _expand_allowed_hosts(hosts: list[str]) -> list[str]:
+    """SDK matches Host exactly; allow bare hostname and hostname:*."""
+    expanded: list[str] = []
+    seen: set[str] = set()
+    for host in hosts:
+        variants = [host]
+        if ":" not in host:
+            variants.append(f"{host}:*")
+        for item in variants:
+            if item not in seen:
+                seen.add(item)
+                expanded.append(item)
+    return expanded
+
+
+def _origins_for_hosts(hosts: list[str]) -> list[str]:
+    origins: list[str] = []
+    seen: set[str] = set()
+    for host in hosts:
+        name = host.split(":")[0]
+        if not name or name == "*":
+            continue
+        for origin in (f"https://{name}", f"https://{name}:*", f"http://{name}", f"http://{name}:*"):
+            if origin not in seen:
+                seen.add(origin)
+                origins.append(origin)
+    return origins
+
+
+def _transport_security_settings() -> Any:
+    """DNS-rebinding allowlist for Streamable HTTP behind a Gateway.
+
+    Without this, FastMCP defaults to localhost-only Host headers and returns
+    421 Misdirected Request for public names like costs.internal.resiz.es.
+    """
+    try:
+        from mcp.server.transport_security import TransportSecuritySettings
+    except ImportError:
+        return None
+
+    hosts = _expand_allowed_hosts(_allowed_hosts_from_env())
+    bind = os.environ.get("MCP_HOST", "127.0.0.1").strip() or "127.0.0.1"
+    kwargs: dict[str, Any] = {}
+    if hosts:
+        kwargs["enable_dns_rebinding_protection"] = True
+        kwargs["allowed_hosts"] = hosts
+        origins = _origins_for_hosts(hosts)
+        if origins:
+            kwargs["allowed_origins"] = origins
+    elif bind in {"0.0.0.0", "::", "[::]"}:
+        # Bind-all HTTP (container / Helm): do not keep the localhost-only guard.
+        kwargs["enable_dns_rebinding_protection"] = False
+    else:
+        return None
+
+    try:
+        return TransportSecuritySettings(**kwargs)
+    except TypeError:
+        kwargs.pop("allowed_origins", None)
+        try:
+            return TransportSecuritySettings(**kwargs)
+        except TypeError:
+            return None
+
+
+def _fastmcp(name: str, **kwargs: Any) -> FastMCP:
+    security = _transport_security_settings()
+    if security is not None:
+        kwargs["transport_security"] = security
+    try:
+        return FastMCP(name, **kwargs)
+    except TypeError:
+        kwargs.pop("transport_security", None)
+        return FastMCP(name, **kwargs)
+
+
+mcp = _fastmcp(
     "org-cost-api",
     instructions=(
         "Read-only access to AWS Org Cost Explorer. "
@@ -516,6 +601,11 @@ def main() -> None:
     if transport in ("sse", "streamable-http"):
         mcp.settings.host = os.environ.get("MCP_HOST", "0.0.0.0")
         mcp.settings.port = int(os.environ.get("MCP_PORT", "8000"))
+        security = _transport_security_settings()
+        if security is not None:
+            for attr in ("transport_security", "_transport_security"):
+                if hasattr(mcp, attr):
+                    setattr(mcp, attr, security)
 
     mcp.run(transport=transport)  # type: ignore[arg-type]
 

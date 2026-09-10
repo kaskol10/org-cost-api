@@ -1,5 +1,6 @@
-{{- if and .Values.mcp.enabled .Values.gateway.enabled }}
-# Raise Envoy idle / request timeouts for Streamable HTTP MCP sessions.
+{{- if and .Values.mcp.enabled .Values.gateway.enabled (not .Values.chat.enabled) }}
+# When chat is also enabled, chat-backend-traffic-policy already raises idle/request
+# timeouts on this HTTPRoute. Only emit a dedicated policy for MCP-only installs.
 apiVersion: gateway.envoyproxy.io/v1alpha1
 kind: BackendTrafficPolicy
 metadata:

@@ -201,6 +201,9 @@ mcp:
   # stdio | sse | streamable-http — streamable-http exposes /mcp (MCP spec).
   transport: streamable-http
   host: "0.0.0.0"
+  # Host headers allowed by MCP DNS-rebinding protection. Empty uses chart hostnames.
+  # Required behind Gateway API (otherwise 421 Invalid Host header).
+  allowedHosts: []
   extraEnv: {}
   resources: {}
   podAnnotations: {}

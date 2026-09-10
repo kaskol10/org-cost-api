@@ -305,6 +305,7 @@ docker compose -f docker-compose.mcp-http.yml up --build
 | `MCP_TRANSPORT` | `stdio` | `stdio`, `sse`, or `streamable-http` |
 | `MCP_HOST` | `127.0.0.1` (`0.0.0.0` for HTTP modes) | Bind address |
 | `MCP_PORT` | `8000` | Listen port for HTTP transports |
+| `MCP_ALLOWED_HOSTS` | (empty) | Comma-separated `Host` headers for Streamable HTTP (e.g. `costs.internal.resiz.es`). Required behind a Gateway; otherwise the SDK returns `421 Invalid Host header`. |
 | `ORG_COST_API_URL` | `http://localhost:8080` | Go API the MCP tools call |
 
 HTTP MCP still calls your Go API over HTTP — it does **not** embed AWS credentials. Protect the MCP port on your network; stdio remains the recommended path for local agents.

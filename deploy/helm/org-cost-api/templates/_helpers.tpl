@@ -70,3 +70,11 @@ app.kubernetes.io/name: {{ include "org-cost-api.name" . }}-mcp
 app.kubernetes.io/instance: {{ .Release.Name }}
 app.kubernetes.io/component: mcp
 {{- end }}
+
+{{- define "org-cost-api.mcp.allowedHosts" -}}
+{{- $hosts := .Values.mcp.allowedHosts | default list }}
+{{- if not $hosts }}
+{{- $hosts = .Values.hostnames | default list }}
+{{- end }}
+{{- join "," $hosts }}
+{{- end }}
