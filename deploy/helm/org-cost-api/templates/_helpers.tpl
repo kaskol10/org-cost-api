@@ -60,3 +60,13 @@ app.kubernetes.io/name: {{ include "org-cost-api.name" . }}-chat
 app.kubernetes.io/instance: {{ .Release.Name }}
 app.kubernetes.io/component: chat
 {{- end }}
+
+{{- define "org-cost-api.mcp.fullname" -}}
+{{- printf "%s-mcp" (include "org-cost-api.fullname" .) }}
+{{- end }}
+
+{{- define "org-cost-api.mcp.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "org-cost-api.name" . }}-mcp
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/component: mcp
+{{- end }}

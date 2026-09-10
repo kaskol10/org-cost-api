@@ -178,3 +178,32 @@ chat:
   podLabels: {}
   podSecurityContext: {}
   securityContext: {}
+
+# --- MCP server (org-cost-mcp Streamable HTTP) ---------------------------------
+# Remote agents (e.g. agentic-ai conversational) connect via Streamable HTTP.
+# Gateway path /mcp → this service. Auth is typically network-only (VPN/Tailscale);
+# the process still uses ORG_COST_API_TOKEN to call the in-cluster Go API.
+
+mcp:
+  enabled: false
+  replicaCount: 1
+  # Long-lived Streamable HTTP sessions need elevated Envoy timeouts.
+  gatewayTimeout: 300s
+  gatewayIdleTimeout: 300s
+  image:
+    # Build: docker build -t org-cost-mcp -f mcp-server/Dockerfile.mcp mcp-server
+    repository: org-cost-mcp
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8000
+  # stdio | sse | streamable-http — streamable-http exposes /mcp (MCP spec).
+  transport: streamable-http
+  host: "0.0.0.0"
+  extraEnv: {}
+  resources: {}
+  podAnnotations: {}
+  podLabels: {}
+  podSecurityContext: {}
+  securityContext: {}

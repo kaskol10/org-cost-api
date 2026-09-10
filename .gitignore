@@ -2,6 +2,7 @@
 config.yaml
 test-config.yaml
 values-site.yaml
+values-resizes.yaml
 values-*.local.yaml
 .env
 .env.local

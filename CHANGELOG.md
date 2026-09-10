@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.0.4] — 2026-09-10
+
+### Added
+
+- Helm chart deploys optional remote MCP (`mcp.enabled`) as Streamable HTTP on `/mcp`
+- GHCR image `ghcr.io/kaskol10/org-cost-api:mcp` from `mcp-server/Dockerfile.mcp`
+
+### Changed
+
+- MCP container default transport is `streamable-http` (was `sse`)
+
 ## [0.0.3] — 2026-09-09
 
 ### Added

@@ -1,0 +1,19 @@
+{{- if and .Values.mcp.enabled .Values.gateway.enabled }}
+# Raise Envoy idle / request timeouts for Streamable HTTP MCP sessions.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: BackendTrafficPolicy
+metadata:
+  name: {{ include "org-cost-api.mcp.fullname" . }}
+  labels:
+    {{- include "org-cost-api.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mcp
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: {{ include "org-cost-api.fullname" . }}
+  timeout:
+    http:
+      requestTimeout: {{ .Values.mcp.gatewayTimeout | default "300s" | quote }}
+      connectionIdleTimeout: {{ .Values.mcp.gatewayIdleTimeout | default "300s" | quote }}
+{{- end }}

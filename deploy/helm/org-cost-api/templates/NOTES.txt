@@ -32,4 +32,15 @@ org-cost-api has been deployed.
    org-cost-chat image, rebuild UI with VITE_CHAT_URL — see docs/eks-operate.md.
 {{- end }}
 
+{{- if .Values.mcp.enabled }}
+
+5. Remote MCP ({{ .Values.mcp.transport }} → /mcp):
+   kubectl -n {{ .Release.Namespace }} get pods -l app.kubernetes.io/component=mcp
+   # Point clients at: https://{{ index .Values.hostnames 0 }}/mcp
+{{- else }}
+
+5. Remote MCP is off (mcp.enabled=false). To enable: set mcp.enabled=true,
+   push org-cost-mcp image (Dockerfile.mcp), expose /mcp on the HTTPRoute.
+{{- end }}
+
 Docs: docs/eks-operate.md

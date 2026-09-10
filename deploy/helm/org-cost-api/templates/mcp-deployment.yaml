@@ -1,0 +1,91 @@
+{{- if .Values.mcp.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "org-cost-api.mcp.fullname" . }}
+  labels:
+    {{- include "org-cost-api.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mcp
+spec:
+  replicas: {{ .Values.mcp.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "org-cost-api.mcp.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "org-cost-api.mcp.selectorLabels" . | nindent 8 }}
+        {{- with .Values.mcp.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.mcp.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "org-cost-api.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.mcp.podSecurityContext | nindent 8 }}
+      containers:
+        - name: mcp
+          image: "{{ .Values.mcp.image.repository }}:{{ .Values.mcp.image.tag }}"
+          imagePullPolicy: {{ .Values.mcp.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.mcp.service.port }}
+              protocol: TCP
+          env:
+            - name: ORG_COST_API_URL
+              value: {{ printf "http://%s:%v" (include "org-cost-api.fullname" .) .Values.service.port | quote }}
+            - name: MCP_TRANSPORT
+              value: {{ .Values.mcp.transport | default "streamable-http" | quote }}
+            - name: MCP_HOST
+              value: {{ .Values.mcp.host | default "0.0.0.0" | quote }}
+            - name: MCP_PORT
+              value: {{ .Values.mcp.service.port | quote }}
+            {{- if or .Values.apiToken .Values.existingSecret }}
+            - name: ORG_COST_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ if .Values.existingSecret }}{{ .Values.existingSecret }}{{ else }}{{ include "org-cost-api.fullname" . }}-token{{ end }}
+                  key: {{ .Values.existingSecretKey | default "ORG_COST_API_TOKEN" }}
+            {{- end }}
+            {{- range $k, $v := .Values.mcp.extraEnv }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 6
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.mcp.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.mcp.securityContext | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

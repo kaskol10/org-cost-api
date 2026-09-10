@@ -40,6 +40,19 @@ spec:
         - name: {{ include "org-cost-api.chat.fullname" . }}
           port: {{ .Values.chat.service.port }}
     {{- end }}
+    {{- if .Values.mcp.enabled }}
+    # Remote MCP (Streamable HTTP). Must be before catch-all /.
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /mcp
+      timeouts:
+        request: {{ .Values.mcp.gatewayTimeout | default "300s" | quote }}
+        backendRequest: {{ .Values.mcp.gatewayTimeout | default "300s" | quote }}
+      backendRefs:
+        - name: {{ include "org-cost-api.mcp.fullname" . }}
+          port: {{ .Values.mcp.service.port }}
+    {{- end }}
     {{- range .Values.httpRoute.rules }}
     - {{- if .matches }}
       matches:
