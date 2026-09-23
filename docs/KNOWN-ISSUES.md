@@ -17,7 +17,7 @@ Honest list for contributors and self-hosters. Demo/public-sharing gaps are bein
 ## AWS integration
 
 - AWS clients are created **at boot** — expired SSO sessions require a process restart.
-- **No HTTP rate limiting** on `?refresh=1` or `POST /api/ask` with `refresh: true` (internal CE semaphore only).
+- Force `?refresh=1` on dashboard/report is rate-limited in-process to **once per 5 minutes** (HTTP 429). `POST /api/ask` with `refresh: true` is not covered by that limiter.
 - Readiness may not re-probe all member accounts when billing profile is configured (member-only path probes `accounts[0]`).
 
 ## API contract

@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/kaskol10/org-cost-api/backend/internal/service"
 )
@@ -26,6 +27,20 @@ func TestWriteAPIErrorUnknownAccount(t *testing.T) {
 	writeAPIError(rec, service.NewUnknownAccountError("missing"))
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("status %d, want 404", rec.Code)
+	}
+}
+
+func TestWriteAPIErrorRateLimited(t *testing.T) {
+	rec := httptest.NewRecorder()
+	writeAPIError(rec, service.NewRateLimitedError(90*time.Second))
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("status %d, want 429", rec.Code)
+	}
+	if rec.Header().Get("Retry-After") != "90" {
+		t.Fatalf("Retry-After %q", rec.Header().Get("Retry-After"))
+	}
+	if !strings.Contains(rec.Body.String(), "refresh limited") {
+		t.Fatalf("body %q", rec.Body.String())
 	}
 }
 

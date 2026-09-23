@@ -17,6 +17,7 @@ data:
     PREFIX="${ACCOUNT_NAME_PREFIX:-}"
     CORS="${CORS_ORIGIN:-*}"
     LOOKBACK="${COST_LOOKBACK_DAYS:-30}"
+    DASH_CACHE_HOURS="${DASHBOARD_CACHE_HOURS:-12}"
     PAYER_ACCOUNT_ID="${PAYER_ACCOUNT_ID:?PAYER_ACCOUNT_ID is required}"
     PAYER_ROLE_ARN="arn:aws:iam::${PAYER_ACCOUNT_ID}:role/${MEMBER_ROLE}"
 
@@ -60,6 +61,7 @@ data:
       echo "listen_addr: \":8080\""
       echo "cors_origin: \"${CORS}\""
       echo "cost_lookback_days: ${LOOKBACK}"
+      echo "dashboard_cache_hours: ${DASH_CACHE_HOURS}"
       echo "billing_profile: \"\""
       echo "billing_role_arn: \"${PAYER_ROLE_ARN}\""
       echo ""

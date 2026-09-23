@@ -60,35 +60,6 @@ func (a *Aggregator) Suggestions(ctx context.Context, force bool, period string)
 	return out, nil
 }
 
-// Report returns dashboard, trends, and suggestions from one dashboard fetch.
-func (a *Aggregator) Report(ctx context.Context, force bool, period string) (*ReportResponse, error) {
-	mode, err := parsePeriodMode(period)
-	if err != nil {
-		return nil, err
-	}
-	dash, view, refreshAllowed, err := a.dashboardBundle(ctx, force, mode)
-	if err != nil {
-		return nil, err
-	}
-
-	trends, err := a.trendsFromView(ctx, dash, view, mode)
-	if err != nil {
-		return nil, err
-	}
-	trends.RefreshAllowed = refreshAllowed
-
-	suggestions := analysis.BuildSuggestions(view, trends)
-	suggestions.CECallsUsed = trends.CECallsUsed
-
-	return &ReportResponse{
-		Dashboard:      dash,
-		Trends:         trends,
-		Suggestions:    suggestions,
-		CECallsUsed:    trends.CECallsUsed,
-		RefreshAllowed: refreshAllowed,
-	}, nil
-}
-
 func (a *Aggregator) dashboardBundle(ctx context.Context, force bool, mode appconfig.PeriodMode) (*DashboardResponse, analysis.DashboardView, bool, error) {
 	dash, err := a.dashboard(ctx, force, mode)
 	if err != nil {

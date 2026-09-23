@@ -63,7 +63,8 @@ func (a *API) dashboard(w http.ResponseWriter, r *http.Request) {
 		data *service.DashboardResponse
 		err  error
 	)
-	if refresh != "" && refresh != "0" && refresh != "false" {
+	force := refresh != "" && refresh != "0" && refresh != "false"
+	if force {
 		data, err = a.agg.DashboardFresh(ctx)
 	} else {
 		data, err = a.agg.Dashboard(ctx)
@@ -73,6 +74,7 @@ func (a *API) dashboard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	stampDashboardGeneratedAt(data)
+	log.Printf("endpoint=dashboard ce_calls_used=n/a cache=%s view=full force=%v", cacheLabel(!force), force)
 	writeJSON(w, http.StatusOK, data)
 }
 
@@ -87,6 +89,10 @@ func (a *API) trends(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	stampTrendsGeneratedAt(data)
+	log.Printf(
+		"endpoint=trends ce_calls_used=%d cache=%s view=full force=%v",
+		data.CECallsUsed, cacheLabel(data.RefreshAllowed), force,
+	)
 	writeJSON(w, http.StatusOK, data)
 }
 
@@ -101,6 +107,10 @@ func (a *API) suggestions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	stampSuggestionsGeneratedAt(data)
+	log.Printf(
+		"endpoint=suggestions ce_calls_used=%d cache=%s view=full force=%v",
+		data.CECallsUsed, cacheLabel(!force), force,
+	)
 	writeJSON(w, http.StatusOK, data)
 }
 
@@ -109,13 +119,21 @@ func (a *API) report(w http.ResponseWriter, r *http.Request) {
 	refresh := strings.TrimSpace(r.URL.Query().Get("refresh"))
 	force := refresh != "" && refresh != "0" && refresh != "false"
 	period := strings.TrimSpace(r.URL.Query().Get("period"))
-	data, err := a.agg.Report(ctx, force, period)
+	view := service.NormalizeReportView(strings.TrimSpace(r.URL.Query().Get("view")))
+	data, err := a.agg.Report(ctx, force, period, view)
 	if err != nil {
 		writeAPIError(w, err)
 		return
 	}
 	stampReportGeneratedAt(data)
 	writeJSON(w, http.StatusOK, data)
+}
+
+func cacheLabel(warm bool) string {
+	if warm {
+		return "hit"
+	}
+	return "miss"
 }
 
 func (a *API) serviceDetail(w http.ResponseWriter, r *http.Request) {
@@ -150,7 +168,7 @@ func (a *API) serviceTagDelta(w http.ResponseWriter, r *http.Request) {
 		tagKey = "Name"
 	}
 
-	topAccounts := 5
+	topAccounts := 3
 	if v := strings.TrimSpace(q.Get("top_accounts")); v != "" {
 		if parsed, err := strconv.Atoi(v); err == nil && parsed > 0 {
 			topAccounts = parsed

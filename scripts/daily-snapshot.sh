@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Trigger a dashboard fetch to warm cache and save a daily history snapshot.
+# Trigger report fetches to warm PVC dashboard cache and save daily history snapshots.
 # Add to cron, e.g.: 0 8 * * * /path/to/scripts/daily-snapshot.sh
+# Helm CronJob calls this for period=30d and period=mtd once per day.
 
 set -euo pipefail
 
@@ -10,5 +11,12 @@ if [[ -n "${ORG_COST_API_TOKEN:-}" ]]; then
   AUTH_HEADER=(-H "Authorization: Bearer ${ORG_COST_API_TOKEN}")
 fi
 
-curl -sf "${AUTH_HEADER[@]}" "${API_URL%/}/api/dashboard" >/dev/null
-echo "Snapshot triggered at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+PERIODS=("30d" "mtd")
+if [[ $# -gt 0 ]]; then
+  PERIODS=("$@")
+fi
+
+for period in "${PERIODS[@]}"; do
+  curl -sf "${AUTH_HEADER[@]}" "${API_URL%/}/api/report?period=${period}" >/dev/null
+  echo "Warmed period=${period} at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+done

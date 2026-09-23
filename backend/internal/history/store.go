@@ -173,6 +173,85 @@ func (s *Store) SavePriorCache(c PriorCache) error {
 	return writeJSON(filepath.Join(s.dir, "prior-cache.json"), c)
 }
 
+// DashboardCacheEntry is a warm dashboard payload shared across pods via PVC.
+type DashboardCacheEntry struct {
+	Key       string          `json:"key"`
+	FetchedAt string          `json:"fetched_at"`
+	Dashboard json.RawMessage `json:"dashboard"`
+}
+
+func (s *Store) dashboardCacheDir() string {
+	return filepath.Join(s.dir, "dashboard-cache")
+}
+
+func dashboardCacheFileName(key string) string {
+	safe := strings.Map(func(r rune) rune {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '-', r == '_', r == '.':
+			return r
+		default:
+			return '_'
+		}
+	}, key)
+	if safe == "" {
+		safe = "default"
+	}
+	return safe + ".json"
+}
+
+// LoadDashboardCache reads a persisted dashboard for key when within maxAge.
+func (s *Store) LoadDashboardCache(key string, maxAge time.Duration) (json.RawMessage, time.Time, error) {
+	var entry DashboardCacheEntry
+	path := filepath.Join(s.dashboardCacheDir(), dashboardCacheFileName(key))
+	if err := readJSON(path, &entry); err != nil {
+		return nil, time.Time{}, err
+	}
+	if entry.Key != "" && entry.Key != key {
+		return nil, time.Time{}, fmt.Errorf("cache key mismatch")
+	}
+	fetchedAt, err := time.Parse(time.RFC3339, entry.FetchedAt)
+	if err != nil {
+		return nil, time.Time{}, fmt.Errorf("parse fetched_at: %w", err)
+	}
+	if maxAge > 0 && time.Since(fetchedAt) > maxAge {
+		return nil, fetchedAt, fmt.Errorf("cache expired")
+	}
+	if len(entry.Dashboard) == 0 {
+		return nil, fetchedAt, fmt.Errorf("empty dashboard cache")
+	}
+	return entry.Dashboard, fetchedAt, nil
+}
+
+// SaveDashboardCache writes a warm dashboard JSON under dashboard-cache/.
+func (s *Store) SaveDashboardCache(key string, dashboard any, fetchedAt time.Time) error {
+	if err := os.MkdirAll(s.dashboardCacheDir(), 0o755); err != nil {
+		return fmt.Errorf("mkdir dashboard-cache: %w", err)
+	}
+	raw, err := json.Marshal(dashboard)
+	if err != nil {
+		return err
+	}
+	if fetchedAt.IsZero() {
+		fetchedAt = time.Now().UTC()
+	}
+	entry := DashboardCacheEntry{
+		Key:       key,
+		FetchedAt: fetchedAt.UTC().Format(time.RFC3339),
+		Dashboard: raw,
+	}
+	return writeJSON(filepath.Join(s.dashboardCacheDir(), dashboardCacheFileName(key)), entry)
+}
+
+// DeleteDashboardCache removes a warm dashboard entry (force refresh).
+func (s *Store) DeleteDashboardCache(key string) error {
+	path := filepath.Join(s.dashboardCacheDir(), dashboardCacheFileName(key))
+	err := os.Remove(path)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
+}
+
 func writeJSON(path string, v any) error {
 	data, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {

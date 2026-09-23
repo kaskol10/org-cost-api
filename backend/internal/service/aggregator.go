@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -37,6 +38,11 @@ type Aggregator struct {
 	// cachedServiceTagDelta stores tag-delta explanations for "why did service change" (cheap reuse).
 	cachedServiceTagDelta   map[string]*analysis.ServiceTagDeltaResponse
 	cachedServiceTagDeltaAt map[string]time.Time
+
+	// Global force-refresh limiter (1 per 5 minutes).
+	refreshMu       sync.Mutex
+	lastForceRefresh time.Time
+	refreshMinInterval time.Duration
 
 	// accountProbe overrides LoadAccountClients for Ready() member-account STS (tests).
 	accountProbe func(ctx context.Context, acct appconfig.Account) error
@@ -79,7 +85,12 @@ func NewAggregator(cfg *appconfig.Config) (*Aggregator, error) {
 	}
 
 	agg := &Aggregator{cfg: cfg, clients: clients, billingByProfile: make(map[string]*ceapi.Client)}
-	agg.cacheTTL = 20 * time.Minute
+	hours := cfg.DashboardCacheHours
+	if hours <= 0 {
+		hours = 12
+	}
+	agg.cacheTTL = time.Duration(hours) * time.Hour
+	agg.refreshMinInterval = 5 * time.Minute
 	agg.cachedServiceTagDelta = make(map[string]*analysis.ServiceTagDeltaResponse)
 	agg.cachedServiceTagDeltaAt = make(map[string]time.Time)
 
@@ -261,25 +272,39 @@ func (a *Aggregator) dashboard(ctx context.Context, force bool, mode appconfig.P
 	start, end := a.cfg.CostDateRangeFor(mode)
 	key := string(mode) + ":" + start + ":" + end
 
+	if force {
+		if err := a.allowForceRefresh(); err != nil {
+			return nil, err
+		}
+		a.invalidateDashboardCache(key)
+	}
+
 	a.cacheMu.Lock()
 	if !force && a.cachedDash != nil && a.cachedDashKey == key && time.Since(a.cachedDashAt) < a.cacheTTL {
 		out := *a.cachedDash
 		a.cacheMu.Unlock()
 		return &out, nil
 	}
-	if force {
-		// Force refresh invalidates tag-delta explanations built against the prior dash.
-		a.cachedServiceTagDelta = make(map[string]*analysis.ServiceTagDeltaResponse)
-		a.cachedServiceTagDeltaAt = make(map[string]time.Time)
-	}
 	a.cacheMu.Unlock()
+
+	if !force {
+		if dash, ok := a.loadDiskDashboard(key); ok {
+			a.cacheMu.Lock()
+			a.cachedDash = dash
+			a.cachedDashAt = time.Now()
+			a.cachedDashKey = key
+			a.cacheMu.Unlock()
+			out := *dash
+			return &out, nil
+		}
+	}
 
 	sfKey := key
 	if force {
 		sfKey = key + ":refresh"
 	}
 	v, err, _ := a.dashSF.Do(sfKey, func() (interface{}, error) {
-		// Re-check cache inside singleflight so waiters share a warm result.
+		// Re-check memory cache inside singleflight so waiters share a warm result.
 		a.cacheMu.Lock()
 		if !force && a.cachedDash != nil && a.cachedDashKey == key && time.Since(a.cachedDashAt) < a.cacheTTL {
 			cached := a.cachedDash
@@ -287,6 +312,16 @@ func (a *Aggregator) dashboard(ctx context.Context, force bool, mode appconfig.P
 			return cached, nil
 		}
 		a.cacheMu.Unlock()
+		if !force {
+			if dash, ok := a.loadDiskDashboard(key); ok {
+				a.cacheMu.Lock()
+				a.cachedDash = dash
+				a.cachedDashAt = time.Now()
+				a.cachedDashKey = key
+				a.cacheMu.Unlock()
+				return dash, nil
+			}
+		}
 		// Detach from the leader's cancel so a disconnected caller does not poison waiters.
 		return a.buildDashboard(context.WithoutCancel(ctx), start, end, key)
 	})
@@ -300,6 +335,60 @@ func (a *Aggregator) dashboard(ctx context.Context, force bool, mode appconfig.P
 	resp := v.(*DashboardResponse)
 	out := *resp
 	return &out, nil
+}
+
+func (a *Aggregator) allowForceRefresh() error {
+	interval := a.refreshMinInterval
+	if interval <= 0 {
+		interval = 5 * time.Minute
+	}
+	a.refreshMu.Lock()
+	defer a.refreshMu.Unlock()
+	if !a.lastForceRefresh.IsZero() {
+		elapsed := time.Since(a.lastForceRefresh)
+		if elapsed < interval {
+			return NewRateLimitedError(interval - elapsed)
+		}
+	}
+	a.lastForceRefresh = time.Now()
+	return nil
+}
+
+func (a *Aggregator) invalidateDashboardCache(key string) {
+	a.cacheMu.Lock()
+	a.cachedDash = nil
+	a.cachedDashAt = time.Time{}
+	a.cachedDashKey = ""
+	a.cachedServiceTagDelta = make(map[string]*analysis.ServiceTagDeltaResponse)
+	a.cachedServiceTagDeltaAt = make(map[string]time.Time)
+	a.cacheMu.Unlock()
+	if a.history != nil {
+		_ = a.history.DeleteDashboardCache(key)
+		_ = a.history.DeleteDashboardCache("lite:" + key)
+	}
+}
+
+func (a *Aggregator) loadDiskDashboard(key string) (*DashboardResponse, bool) {
+	if a.history == nil {
+		return nil, false
+	}
+	raw, fetchedAt, err := a.history.LoadDashboardCache(key, a.cacheTTL)
+	if err != nil {
+		return nil, false
+	}
+	var dash DashboardResponse
+	if err := json.Unmarshal(raw, &dash); err != nil {
+		return nil, false
+	}
+	_ = fetchedAt
+	return &dash, true
+}
+
+func (a *Aggregator) saveDiskDashboard(key string, dash *DashboardResponse) {
+	if a.history == nil || dash == nil {
+		return
+	}
+	_ = a.history.SaveDashboardCache(key, dash, time.Now().UTC())
 }
 
 func (a *Aggregator) demoDashboard(ctx context.Context, force bool, mode appconfig.PeriodMode) (*DashboardResponse, error) {
@@ -471,6 +560,7 @@ func (a *Aggregator) buildDashboard(ctx context.Context, start, end, key string)
 	a.cachedDashKey = key
 	a.cacheMu.Unlock()
 
+	a.saveDiskDashboard(key, resp)
 	a.recordSnapshot(resp)
 
 	return resp, nil

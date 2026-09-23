@@ -3,6 +3,7 @@ package service
 import (
 	"errors"
 	"fmt"
+	"time"
 )
 
 // ErrInvalidRequest is returned for bad query parameters.
@@ -23,6 +24,37 @@ func (e *InvalidRequestError) Is(target error) bool {
 
 func NewInvalidRequestError(msg string) error {
 	return &InvalidRequestError{Message: msg}
+}
+
+// ErrRateLimited is returned when force refresh is requested too frequently.
+var ErrRateLimited = errors.New("rate limited")
+
+// RateLimitedError asks the client to wait before refreshing again.
+type RateLimitedError struct {
+	RetryAfter time.Duration
+	Message    string
+}
+
+func (e *RateLimitedError) Error() string {
+	if e.Message != "" {
+		return e.Message
+	}
+	return "refresh rate limited"
+}
+
+func (e *RateLimitedError) Is(target error) bool {
+	return target == ErrRateLimited
+}
+
+func NewRateLimitedError(retryAfter time.Duration) error {
+	secs := int(retryAfter.Seconds())
+	if secs < 1 {
+		secs = 1
+	}
+	return &RateLimitedError{
+		RetryAfter: retryAfter,
+		Message:    fmt.Sprintf("refresh limited to once per 5 minutes; retry after %ds", secs),
+	}
 }
 
 // ErrUnknownAccount is returned when an account name or id is not configured.

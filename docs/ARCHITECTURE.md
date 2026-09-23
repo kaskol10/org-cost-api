@@ -63,10 +63,11 @@ Demo fixtures live in `backend/internal/demo/`. Production config uses `config.y
 
 ## Request flow (dashboard)
 
-1. Client calls `GET /api/report` (or `/api/dashboard`).
-2. Handler checks cache; on miss, aggregator builds dashboard (parallel per account).
-3. Trends compare current period to history snapshot or one CE payer call.
-4. Response includes dashboard, trends, suggestions, and `ce_calls_used`.
+1. Client calls `GET /api/report` (or `/api/dashboard`). Optional `view=lite` builds from payer org totals (~2 CE calls) instead of per-account `GetCostSummary`.
+2. Handler checks in-memory TTL then PVC `history_dir/dashboard-cache/` (default TTL `dashboard_cache_hours: 12`); on miss, aggregator builds and writes disk.
+3. Trends compare current period to history snapshot or payer CE prior totals.
+4. Response includes dashboard, trends, suggestions, and `ce_calls_used`. `refresh=true` is limited to once per 5 minutes (429).
+5. Daily Helm CronJob (`warmCronJob`) warms `period=30d` and `period=mtd` so interactive traffic stays hot.
 
 ## MCP flow
 

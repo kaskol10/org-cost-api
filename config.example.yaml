@@ -18,6 +18,7 @@ billing_profile: Master.AdministratorAccess
 # Optional: daily cost snapshots for trends (default ~/.org-cost/history)
 # history_dir: /Users/you/.org-cost/history
 # prior_period_cache_hours: 24
+# dashboard_cache_hours: 12  # shared PVC JSON + in-memory TTL (CE data is ~daily)
 
 # Optional conversational Ask — Python chat agent (org-cost-chat), not the Go server.
 # See docs/chat-setup.md. Env vars override these values.
