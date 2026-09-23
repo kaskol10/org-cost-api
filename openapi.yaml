@@ -383,7 +383,8 @@ components:
       schema:
         type: string
         enum: [full, lite]
-        default: full  responses:
+        default: full
+  responses:
     Unauthorized:
       description: Missing or invalid bearer token
       content:
