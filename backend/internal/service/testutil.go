@@ -36,7 +36,8 @@ func NewTestAggregator(cfg *appconfig.Config, dash *DashboardResponse) *Aggregat
 		cfg:                      cfg,
 		clients:                  clients,
 		billingByProfile:         make(map[string]*ceapi.Client),
-		cacheTTL:                 20 * time.Minute,
+		cacheTTL:                 12 * time.Hour,
+		refreshMinInterval:       5 * time.Minute,
 		cachedServiceTagDelta:    make(map[string]*analysis.ServiceTagDeltaResponse),
 		cachedServiceTagDeltaAt:  make(map[string]time.Time),
 		// Avoid live AWS STS in Ready() for httptest / unit fixtures.

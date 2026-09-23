@@ -137,6 +137,7 @@ paths:
       parameters:
         - $ref: "#/components/parameters/refresh"
         - $ref: "#/components/parameters/period"
+        - $ref: "#/components/parameters/view"
       responses:
         "200":
           description: Report bundle
@@ -148,6 +149,12 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "429":
+          description: Force refresh rate limited (once per 5 minutes)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "500":
           $ref: "#/components/responses/InternalError"
   /api/account-costs:
@@ -352,6 +359,7 @@ components:
       description: >
         Force live AWS Cost Explorer fetch. Truthy when set to "1", "true", or any
         value except "0", "false", or empty (uses cache when available).
+        Rate-limited to once per 5 minutes globally (HTTP 429).
       schema:
         type: string
     period:
@@ -365,6 +373,17 @@ components:
         type: string
         enum: [30d, mtd, lookback]
         default: 30d
+    view:
+      name: view
+      in: query
+      description: >
+        Report shape. "full" (default) builds the per-account dashboard via GetCostSummary.
+        "lite" uses payer GetOrgAccountTotals + GetOrgServiceTotals (~2 CE calls) — preferred
+        for agentic Overview / Org spend.
+      schema:
+        type: string
+        enum: [full, lite]
+        default: full
   responses:
     Unauthorized:
       description: Missing or invalid bearer token

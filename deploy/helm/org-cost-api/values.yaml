@@ -94,6 +94,7 @@ autoConfig:
   defaultRegion: us-east-1
   corsOrigin: "*"
   costLookbackDays: 30
+  dashboardCacheHours: 12
   accountNamePrefix: ""
   image:
     # Multi-arch (arm64/amd64). Entrypoint is aws — Deployment overrides to bash.
@@ -119,6 +120,11 @@ bootstrapJob:
   enabled: false
   backoffLimit: 3
   ttlSecondsAfterFinished: 86400
+
+# Daily warm of PVC dashboard cache (30d + mtd) so interactive traffic stays hot
+warmCronJob:
+  enabled: false
+  schedule: "0 8 * * *"
 
 # --- Gateway API (HTTPRoute only — no Ingress) --------------------------------
 

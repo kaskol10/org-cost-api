@@ -60,6 +60,8 @@ spec:
               value: {{ .Values.autoConfig.corsOrigin | quote }}
             - name: COST_LOOKBACK_DAYS
               value: {{ .Values.autoConfig.costLookbackDays | quote }}
+            - name: DASHBOARD_CACHE_HOURS
+              value: {{ .Values.autoConfig.dashboardCacheHours | default 12 | quote }}
             - name: ACCOUNT_NAME_PREFIX
               value: {{ .Values.autoConfig.accountNamePrefix | quote }}
           volumeMounts:

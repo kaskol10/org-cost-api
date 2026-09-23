@@ -1,0 +1,81 @@
+{{- if .Values.warmCronJob.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "org-cost-api.fullname" . }}-warm
+  labels:
+    {{- include "org-cost-api.labels" . | nindent 4 }}
+    app.kubernetes.io/component: warm-cache
+spec:
+  schedule: {{ .Values.warmCronJob.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      ttlSecondsAfterFinished: 86400
+      template:
+        metadata:
+          labels:
+            {{- include "org-cost-api.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: warm-cache
+        spec:
+          restartPolicy: OnFailure
+          {{- with .Values.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          containers:
+            - name: warm
+              image: curlimages/curl:8.5.0
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sh", "/scripts/daily-snapshot.sh"]
+              env:
+                - name: ORG_COST_API_URL
+                  value: "http://{{ include "org-cost-api.fullname" . }}:{{ .Values.service.port }}"
+                {{- if or .Values.apiToken .Values.existingSecret }}
+                - name: ORG_COST_API_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ default (printf "%s-token" (include "org-cost-api.fullname" .)) .Values.existingSecret }}
+                      key: {{ default "ORG_COST_API_TOKEN" .Values.existingSecretKey }}
+                {{- end }}
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+                  readOnly: true
+          volumes:
+            - name: scripts
+              configMap:
+                name: {{ include "org-cost-api.fullname" . }}-warm-scripts
+                defaultMode: 0755
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "org-cost-api.fullname" . }}-warm-scripts
+  labels:
+    {{- include "org-cost-api.labels" . | nindent 4 }}
+data:
+  daily-snapshot.sh: |
+    #!/bin/sh
+    set -eu
+    API_URL="${ORG_COST_API_URL:-http://localhost:8080}"
+    AUTH_HEADER=""
+    if [ -n "${ORG_COST_API_TOKEN:-}" ]; then
+      AUTH_HEADER="Authorization: Bearer ${ORG_COST_API_TOKEN}"
+    fi
+    for period in 30d mtd; do
+      if [ -n "$AUTH_HEADER" ]; then
+        curl -sf -H "$AUTH_HEADER" "${API_URL%/}/api/report?period=${period}" >/dev/null
+      else
+        curl -sf "${API_URL%/}/api/report?period=${period}" >/dev/null
+      fi
+      echo "Warmed period=${period} at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    done
+{{- end }}

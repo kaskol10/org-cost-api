@@ -61,6 +61,9 @@ type Config struct {
 	HistoryDir string `yaml:"history_dir,omitempty"`
 	// PriorPeriodCacheHours avoids repeat CE calls for prior-period comparison (default 24).
 	PriorPeriodCacheHours int `yaml:"prior_period_cache_hours,omitempty"`
+	// DashboardCacheHours is the shared dashboard/tag-delta TTL (default 12).
+	// Persisted under history_dir/dashboard-cache/ so pods share warm results via PVC.
+	DashboardCacheHours int `yaml:"dashboard_cache_hours,omitempty"`
 	// APIToken optionally protects /api/* routes (prefer api_token_env).
 	APIToken    string `yaml:"api_token,omitempty"`
 	APITokenEnv string `yaml:"api_token_env,omitempty"`
@@ -102,6 +105,9 @@ func Load(path string) (*Config, error) {
 	if cfg.PriorPeriodCacheHours <= 0 {
 		cfg.PriorPeriodCacheHours = 24
 	}
+	if cfg.DashboardCacheHours <= 0 {
+		cfg.DashboardCacheHours = 12
+	}
 	if len(cfg.Accounts) == 0 {
 		return nil, fmt.Errorf("at least one account must be configured")
 	}
@@ -133,6 +139,9 @@ func finalizeDemoConfig(cfg *Config) (*Config, error) {
 	}
 	if cfg.CostLookbackDays <= 0 {
 		cfg.CostLookbackDays = 30
+	}
+	if cfg.DashboardCacheHours <= 0 {
+		cfg.DashboardCacheHours = 12
 	}
 	if len(cfg.Accounts) == 0 {
 		cfg.Accounts = []Account{
