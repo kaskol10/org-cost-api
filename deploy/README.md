@@ -7,10 +7,21 @@ Real AWS org on an existing EKS cluster — Gateway API `HTTPRoute`, IRSA, optio
 | Component | Path |
 |-----------|------|
 | Org-wide IAM (StackSet) | [aws/README.md](./aws/README.md) |
-| Helm chart | [helm/org-cost-api](./helm/org-cost-api) |
+| Helm chart | [helm/org-cost-api](./helm/org-cost-api) — also published to GHCR on `v*` tags |
 | EKS prerequisites | [eks/README.md](./eks/README.md) |
 | End-to-end guide | [docs/eks-operate.md](../docs/eks-operate.md) |
 | Terraform (optional IRSA + Helm) | [terraform/README.md](./terraform/README.md) |
+
+Install a released chart from GHCR (version matches the git tag, without the `v`):
+
+```bash
+helm registry login ghcr.io
+helm upgrade --install org-cost-api \
+  oci://ghcr.io/kaskol10/org-cost-api/charts/org-cost-api \
+  --version 0.0.5 \
+  --namespace monitoring --create-namespace \
+  -f values-site.yaml
+```
 
 ---
 

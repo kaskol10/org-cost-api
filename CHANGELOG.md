@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Publish Helm chart `org-cost-api` to GHCR (`oci://ghcr.io/kaskol10/org-cost-api/charts`) on `v*` tags
+
+### Changed
+
+- Split `onboard-iam.sh` into `deploy` (IRSA) and `payer` (StackSet + management OrgCostReadOnly) so each side can run with only its own credentials
+- Optional `--name-prefix` / CloudFormation `NamePrefix` for customer-scoped IAM role, policy, and stack names
+
 ## [0.0.5] — 2026-09-10
 
 ### Fixed

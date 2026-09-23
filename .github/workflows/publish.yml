@@ -103,6 +103,30 @@ jobs:
             ghcr.io/${{ github.repository }}:org-cost-mcp
             ghcr.io/${{ github.repository }}:org-cost-mcp-${{ github.ref_name }}
 
+  helm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.16.3
+
+      - name: Package and push Helm chart
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          CHART=deploy/helm/org-cost-api
+          helm lint "$CHART"
+          helm package "$CHART" --version "$VERSION" --app-version "$VERSION" --destination /tmp/helm
+          echo "${GITHUB_TOKEN}" | helm registry login ghcr.io \
+            --username "${{ github.actor }}" \
+            --password-stdin
+          helm push "/tmp/helm/org-cost-api-${VERSION}.tgz" \
+            "oci://ghcr.io/${{ github.repository }}/charts"
+
   pypi:
     runs-on: ubuntu-latest
     defaults:

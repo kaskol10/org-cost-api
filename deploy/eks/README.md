@@ -19,7 +19,7 @@ End-to-end Operate path: [docs/eks-operate.md](../../docs/eks-operate.md).
 
 | Step | Doc |
 |------|-----|
-| All IAM (StackSet + IRSA, one command) | [deploy/aws/onboard-iam.sh](../aws/onboard-iam.sh) · [README](../aws/README.md) |
+| IAM (IRSA + StackSet; split deploy / payer) | [deploy/aws/onboard-iam.sh](../aws/onboard-iam.sh) · [README](../aws/README.md) |
 
 Trust chain:
 
@@ -59,7 +59,7 @@ Pod (IRSA) → payer IRSA role → sts:AssumeRole → OrgCostReadOnly (per accou
 Created automatically by the StackSet in the **deploy account** when `OidcProviderArn` is set:
 
 ```bash
-./deploy/aws/onboard-iam.sh --profile Master.AdministratorAccess ...
+./deploy/aws/onboard-iam.sh deploy --profile Shared-Services.AdministratorAccess ...
 ```
 
 Annotate the Helm ServiceAccount with the printed IRSA ARN:

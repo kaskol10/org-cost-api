@@ -1,29 +1,33 @@
 #!/usr/bin/env bash
-# One-command IAM onboarding for org-cost-api on EKS.
+# IAM onboarding for org-cost-api on EKS — split by account access.
 #
-# 1. Deploy IRSA role in the EKS (shared-services) account
-# 2. Deploy OrgCostReadOnly in the payer/management account (direct CFN —
-#    SERVICE_MANAGED StackSets do not deploy into the management account)
-# 3. Deploy OrgCostReadOnly to member accounts via StackSet
-#
-# Usage:
-#   ./deploy/aws/onboard-iam.sh \
-#     --profile Master.AdministratorAccess \
-#     --deploy-account-profile Shared-Services.AdministratorAccess \
-#     --payer-account-id 111122223333 \
+# Deploy account (EKS / shared-services) — IRSA only:
+#   ./deploy/aws/onboard-iam.sh deploy \
+#     --profile Shared-Services.AdministratorAccess \
 #     --deploy-account-id 444455556666 \
 #     --oidc-provider-arn 'arn:aws:iam::444455556666:oidc-provider/oidc.eks.eu-west-1.amazonaws.com/id/XXXX' \
 #     --namespace monitoring \
-#     --ou-id r-xxxx
+#     --name-prefix acme
+#
+# Payer / org management — OrgCostReadOnly + StackSet (no deploy-account credentials):
+#   ./deploy/aws/onboard-iam.sh payer \
+#     --profile Master.AdministratorAccess \
+#     --payer-account-id 111122223333 \
+#     --deploy-account-id 444455556666 \
+#     --ou-id r-xxxx \
+#     --name-prefix acme
+#
+# Both from one machine (legacy): omit the subcommand and pass both profiles.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 STACKSET_TEMPLATE="$ROOT/deploy/aws/stackset-iam.yaml"
 IRSA_TEMPLATE="$ROOT/deploy/aws/irsa-role.yaml"
 PAYER_TEMPLATE="$ROOT/deploy/aws/payer-readonly-role.yaml"
-STACK_SET_NAME="org-cost-api-iam"
-IRSA_STACK_NAME="org-cost-api-irsa"
-PAYER_STACK_NAME="org-cost-api-payer-readonly"
+NAME_PREFIX=""
+IRSA_ROLE_BASE="org-cost-api-irsa"
+MEMBER_ROLE_BASE="OrgCostReadOnly"
+SIDE=""
 PROFILE=""
 DEPLOY_PROFILE=""
 PAYER_ACCOUNT_ID=""
@@ -34,14 +38,20 @@ ACCOUNTS=""
 REGION="eu-west-1"
 K8S_NAMESPACE="monitoring"
 SERVICE_ACCOUNT_NAME="org-cost-api"
-IRSA_ROLE_NAME="org-cost-api-irsa"
-MEMBER_ROLE_NAME="OrgCostReadOnly"
 TRUST_VERSION="3"
 
 usage() {
-  sed -n '2,17p' "$0" | sed 's/^# \?//'
+  sed -n '2,18p' "$0" | sed 's/^# \?//'
   exit "${1:-0}"
 }
+
+if [[ $# -gt 0 && "$1" != -* ]]; then
+  case "$1" in
+    deploy|payer|all) SIDE="$1"; shift ;;
+    -h|--help) usage 0 ;;
+    *) echo "Unknown command: $1 (use deploy, payer, or all)" >&2; usage 1 ;;
+  esac
+fi
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -55,29 +65,84 @@ while [[ $# -gt 0 ]]; do
     --region|-r) REGION="${2:?}"; shift 2 ;;
     --namespace) K8S_NAMESPACE="${2:?}"; shift 2 ;;
     --service-account) SERVICE_ACCOUNT_NAME="${2:?}"; shift 2 ;;
-    --irsa-role-name) IRSA_ROLE_NAME="${2:?}"; shift 2 ;;
+    --irsa-role-name) IRSA_ROLE_BASE="${2:?}"; shift 2 ;;
+    --member-role-name) MEMBER_ROLE_BASE="${2:?}"; shift 2 ;;
+    --name-prefix) NAME_PREFIX="${2:?}"; shift 2 ;;
     --trust-version) TRUST_VERSION="${2:?}"; shift 2 ;;
     -h|--help) usage 0 ;;
     *) echo "Unknown option: $1" >&2; usage 1 ;;
   esac
 done
 
-[[ -n "$PROFILE" ]] || { echo "ERROR: --profile is required (org management account)" >&2; usage 1; }
-[[ -n "$DEPLOY_PROFILE" ]] || { echo "ERROR: --deploy-account-profile is required (EKS account)" >&2; usage 1; }
-[[ -n "$PAYER_ACCOUNT_ID" ]] || { echo "ERROR: --payer-account-id is required" >&2; usage 1; }
-[[ -n "$DEPLOY_ACCOUNT_ID" ]] || { echo "ERROR: --deploy-account-id is required" >&2; usage 1; }
-[[ -n "$OIDC_PROVIDER_ARN" ]] || { echo "ERROR: --oidc-provider-arn is required" >&2; usage 1; }
-[[ "$OIDC_PROVIDER_ARN" == arn:aws:iam::*:oidc-provider/* ]] || {
-  echo "ERROR: --oidc-provider-arn must look like arn:aws:iam::ACCOUNT:oidc-provider/..." >&2
-  exit 1
-}
-[[ -n "$OU_ID" || -n "$ACCOUNTS" ]] || { echo "ERROR: --ou-id or --accounts is required" >&2; usage 1; }
+if [[ -z "$SIDE" ]]; then
+  if [[ -n "$DEPLOY_PROFILE" ]]; then
+    SIDE="all"
+  else
+    echo "ERROR: pass 'deploy' or 'payer', or provide both --profile and --deploy-account-profile" >&2
+    usage 1
+  fi
+fi
 
-AWS_MASTER=(aws --profile "$PROFILE" --region "$REGION")
-AWS_DEPLOY=(aws --profile "$DEPLOY_PROFILE" --region "$REGION")
+if [[ "$SIDE" == "all" ]]; then
+  [[ -n "$PROFILE" ]] || { echo "ERROR: --profile is required (org management account)" >&2; usage 1; }
+  [[ -n "$DEPLOY_PROFILE" ]] || { echo "ERROR: --deploy-account-profile is required (EKS account)" >&2; usage 1; }
+elif [[ "$SIDE" == "deploy" ]]; then
+  [[ -n "$PROFILE" || -n "$DEPLOY_PROFILE" ]] || {
+    echo "ERROR: --profile is required (EKS / deploy account)" >&2
+    usage 1
+  }
+  DEPLOY_PROFILE="${DEPLOY_PROFILE:-$PROFILE}"
+elif [[ "$SIDE" == "payer" ]]; then
+  [[ -n "$PROFILE" ]] || { echo "ERROR: --profile is required (org management / payer account)" >&2; usage 1; }
+fi
+
+if [[ "$SIDE" == "all" || "$SIDE" == "payer" ]]; then
+  [[ -n "$PAYER_ACCOUNT_ID" ]] || { echo "ERROR: --payer-account-id is required" >&2; usage 1; }
+fi
+
+[[ -n "$DEPLOY_ACCOUNT_ID" ]] || { echo "ERROR: --deploy-account-id is required" >&2; usage 1; }
+
+if [[ "$SIDE" == "all" || "$SIDE" == "deploy" ]]; then
+  [[ -n "$OIDC_PROVIDER_ARN" ]] || { echo "ERROR: --oidc-provider-arn is required" >&2; usage 1; }
+  [[ "$OIDC_PROVIDER_ARN" == arn:aws:iam::*:oidc-provider/* ]] || {
+    echo "ERROR: --oidc-provider-arn must look like arn:aws:iam::ACCOUNT:oidc-provider/..." >&2
+    exit 1
+  }
+fi
+
+if [[ "$SIDE" == "all" || "$SIDE" == "payer" ]]; then
+  [[ -n "$OU_ID" || -n "$ACCOUNTS" ]] || { echo "ERROR: --ou-id or --accounts is required" >&2; usage 1; }
+fi
+
+if [[ -n "$NAME_PREFIX" ]]; then
+  NAME_PREFIX="${NAME_PREFIX%-}-"
+  if [[ ! "$NAME_PREFIX" =~ ^[A-Za-z0-9+=,.@_-]+$ ]]; then
+    echo "ERROR: --name-prefix must use IAM-safe characters (A-Za-z0-9+=,.@_-) " >&2
+    exit 1
+  fi
+fi
+IRSA_ROLE_NAME="${NAME_PREFIX}${IRSA_ROLE_BASE}"
+MEMBER_ROLE_NAME="${NAME_PREFIX}${MEMBER_ROLE_BASE}"
+MEMBER_POLICY_NAME="${NAME_PREFIX}OrgCostReadOnly"
+STACK_SET_NAME="${NAME_PREFIX}org-cost-api-iam"
+IRSA_STACK_NAME="${NAME_PREFIX}org-cost-api-irsa"
+PAYER_STACK_NAME="${NAME_PREFIX}org-cost-api-payer-readonly"
+if (( ${#IRSA_ROLE_NAME} > 64 || ${#MEMBER_ROLE_NAME} > 64 )); then
+  echo "ERROR: prefixed IAM role name exceeds 64 characters" >&2
+  exit 1
+fi
+
+AWS_MASTER=()
+AWS_DEPLOY=()
+if [[ "$SIDE" == "all" || "$SIDE" == "payer" ]]; then
+  AWS_MASTER=(aws --profile "$PROFILE" --region "$REGION")
+fi
+if [[ "$SIDE" == "all" || "$SIDE" == "deploy" ]]; then
+  AWS_DEPLOY=(aws --profile "$DEPLOY_PROFILE" --region "$REGION")
+fi
 
 ORG_TARGET_OU="$OU_ID"
-if [[ -z "$ORG_TARGET_OU" ]]; then
+if [[ "$SIDE" != "deploy" && -z "$ORG_TARGET_OU" ]]; then
   ORG_TARGET_OU="$("${AWS_MASTER[@]}" organizations list-roots --query 'Roots[0].Id' --output text)"
 fi
 
@@ -108,8 +173,9 @@ print(json.dumps({
 STACKSET_PARAMS=(
   "ParameterKey=DeployAccountId,ParameterValue=$DEPLOY_ACCOUNT_ID"
   "ParameterKey=PayerAccountId,ParameterValue=$PAYER_ACCOUNT_ID"
-  "ParameterKey=IrsaRoleName,ParameterValue=$IRSA_ROLE_NAME"
-  "ParameterKey=RoleName,ParameterValue=$MEMBER_ROLE_NAME"
+  "ParameterKey=NamePrefix,ParameterValue=$NAME_PREFIX"
+  "ParameterKey=IrsaRoleName,ParameterValue=$IRSA_ROLE_BASE"
+  "ParameterKey=RoleName,ParameterValue=$MEMBER_ROLE_BASE"
   "ParameterKey=TrustVersion,ParameterValue=$TRUST_VERSION"
 )
 
@@ -134,7 +200,7 @@ wait_for_stackset_operation() {
 }
 
 deploy_irsa_role() {
-  echo "Phase 1: deploy IRSA in shared-services ($DEPLOY_PROFILE)..." >&2
+  echo "Deploy: IRSA in EKS account ($DEPLOY_PROFILE)..." >&2
   "${AWS_DEPLOY[@]}" cloudformation deploy \
     --template-file "$IRSA_TEMPLATE" \
     --stack-name "$IRSA_STACK_NAME" \
@@ -143,8 +209,9 @@ deploy_irsa_role() {
       "OidcProviderArn=$OIDC_PROVIDER_ARN" \
       "KubernetesNamespace=$K8S_NAMESPACE" \
       "ServiceAccountName=$SERVICE_ACCOUNT_NAME" \
-      "IrsaRoleName=$IRSA_ROLE_NAME" \
-      "MemberRoleName=$MEMBER_ROLE_NAME" \
+      "NamePrefix=$NAME_PREFIX" \
+      "IrsaRoleName=$IRSA_ROLE_BASE" \
+      "MemberRoleName=$MEMBER_ROLE_BASE" \
     --no-fail-on-empty-changeset
 
   echo "Waiting for IRSA role to be visible..." >&2
@@ -160,7 +227,7 @@ deploy_irsa_role() {
 }
 
 deploy_payer_role() {
-  echo "Phase 2: deploy OrgCostReadOnly in payer/management account (direct CFN)..." >&2
+  echo "Payer: OrgCostReadOnly in management account (direct CFN)..." >&2
   set +e
   DEPLOY_OUT="$("${AWS_MASTER[@]}" cloudformation deploy \
     --template-file "$PAYER_TEMPLATE" \
@@ -168,8 +235,9 @@ deploy_payer_role() {
     --capabilities CAPABILITY_NAMED_IAM \
     --parameter-overrides \
       "DeployAccountId=$DEPLOY_ACCOUNT_ID" \
-      "IrsaRoleName=$IRSA_ROLE_NAME" \
-      "RoleName=$MEMBER_ROLE_NAME" \
+      "NamePrefix=$NAME_PREFIX" \
+      "IrsaRoleName=$IRSA_ROLE_BASE" \
+      "RoleName=$MEMBER_ROLE_BASE" \
       "TrustVersion=$TRUST_VERSION" \
     --no-fail-on-empty-changeset 2>&1)"
   DEPLOY_RC=$?
@@ -248,7 +316,7 @@ EOF
         --policy-document "file://${TRUST_FILE}"
       "${AWS_MASTER[@]}" iam put-role-policy \
         --role-name "$MEMBER_ROLE_NAME" \
-        --policy-name OrgCostReadOnly \
+        --policy-name "$MEMBER_POLICY_NAME" \
         --policy-document "file://${POLICY_FILE}"
       rm -f "$TRUST_FILE" "$POLICY_FILE"
     else
@@ -269,7 +337,7 @@ EOF
 }
 
 upsert_stack_set() {
-  echo "Phase 3: update StackSet definition (member accounts)..." >&2
+  echo "Payer: update StackSet definition (member accounts)..." >&2
   "${AWS_MASTER[@]}" cloudformation enable-organizations-access >/dev/null 2>&1 || true
 
   if "${AWS_MASTER[@]}" cloudformation describe-stack-set --stack-set-name "$STACK_SET_NAME" >/dev/null 2>&1; then
@@ -307,7 +375,7 @@ deploy_member_roles() {
   local mode="$1"
   local targets
   targets="$(deployment_targets_json "$mode")"
-  echo "Phase 4: deploy/update OrgCostReadOnly via StackSet ($targets)..." >&2
+  echo "Payer: deploy/update OrgCostReadOnly via StackSet ($targets)..." >&2
 
   set +e
   UPDATE_OUT="$("${AWS_MASTER[@]}" cloudformation update-stack-instances \
@@ -347,30 +415,49 @@ deploy_member_roles() {
   wait_for_stackset_operation "$op_id"
 }
 
-verify_assume_payer() {
-  echo "Phase 5: verify IRSA can AssumeRole into payer OrgCostReadOnly..." >&2
-  # Use deploy-account credentials if they can assume; otherwise skip with note.
-  # Best effort: Master simulates by checking trust document (already done).
-  echo "Payer role trusts arn:aws:iam::${DEPLOY_ACCOUNT_ID}:role/${IRSA_ROLE_NAME}" >&2
+print_helm_hint() {
+  local irsa_arn="arn:aws:iam::${DEPLOY_ACCOUNT_ID}:role/${IRSA_ROLE_NAME}"
+  echo ""
+  echo "Helm SA annotation:"
+  echo "  eks.amazonaws.com/role-arn: $irsa_arn"
+  echo "  namespace / SA must be: ${K8S_NAMESPACE} / ${SERVICE_ACCOUNT_NAME}"
+  echo "  Helm autoConfig.memberRoleName: ${MEMBER_ROLE_NAME}"
 }
 
-deploy_irsa_role
-deploy_payer_role
-upsert_stack_set
-if [[ -n "$OU_ID" ]]; then
-  deploy_member_roles ou
-else
-  deploy_member_roles accounts
-fi
-verify_assume_payer
+run_deploy() {
+  deploy_irsa_role
+  echo ""
+  echo "Deploy-account IAM complete."
+  echo "  IRSA role → arn:aws:iam::${DEPLOY_ACCOUNT_ID}:role/${IRSA_ROLE_NAME}"
+  echo "  Next: someone with org-management access runs:"
+  echo "    ./deploy/aws/onboard-iam.sh payer --profile MASTER --payer-account-id PAYER --deploy-account-id ${DEPLOY_ACCOUNT_ID} --ou-id OU"
+  print_helm_hint
+}
 
-IRSA_ARN="arn:aws:iam::${DEPLOY_ACCOUNT_ID}:role/${IRSA_ROLE_NAME}"
-echo ""
-echo "IAM onboarding complete."
-echo "  IRSA role              → $IRSA_ARN"
-echo "  Payer OrgCostReadOnly  → arn:aws:iam::${PAYER_ACCOUNT_ID}:role/${MEMBER_ROLE_NAME} (direct CFN)"
-echo "  Member OrgCostReadOnly → StackSet (trusts IRSA)"
-echo ""
-echo "Helm SA annotation:"
-echo "  eks.amazonaws.com/role-arn: $IRSA_ARN"
-echo "  namespace / SA must be: ${K8S_NAMESPACE} / ${SERVICE_ACCOUNT_NAME}"
+run_payer() {
+  echo "Payer trusts IRSA arn:aws:iam::${DEPLOY_ACCOUNT_ID}:role/${IRSA_ROLE_NAME}" >&2
+  echo "If StackSet fails with Invalid principal, run the deploy-account command first." >&2
+  deploy_payer_role
+  upsert_stack_set
+  if [[ -n "$OU_ID" ]]; then
+    deploy_member_roles ou
+  else
+    deploy_member_roles accounts
+  fi
+  echo ""
+  echo "Payer / org IAM complete."
+  echo "  Payer OrgCostReadOnly  → arn:aws:iam::${PAYER_ACCOUNT_ID}:role/${MEMBER_ROLE_NAME} (direct CFN)"
+  echo "  Member OrgCostReadOnly → StackSet (trusts IRSA in ${DEPLOY_ACCOUNT_ID})"
+  print_helm_hint
+}
+
+case "$SIDE" in
+  deploy) run_deploy ;;
+  payer) run_payer ;;
+  all)
+    deploy_irsa_role
+    run_payer
+    echo ""
+    echo "IAM onboarding complete (deploy + payer)."
+    ;;
+esac
