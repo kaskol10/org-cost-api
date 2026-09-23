@@ -15,6 +15,12 @@ Parameters:
     Type: String
     Default: org-cost-api
 
+  NamePrefix:
+    Type: String
+    Default: ""
+    Description: Optional prefix for IAM role and inline policy names (e.g. acme-).
+    AllowedPattern: "^$|^[A-Za-z0-9+=,.@_-]+$"
+
   IrsaRoleName:
     Type: String
     Default: org-cost-api-irsa
@@ -22,13 +28,13 @@ Parameters:
   MemberRoleName:
     Type: String
     Default: OrgCostReadOnly
-    Description: OrgCostReadOnly role name in member accounts (for sts:AssumeRole policy).
+    Description: Unprefixed OrgCostReadOnly role name in member accounts (for sts:AssumeRole).
 
 Resources:
   OrgCostApiIrsaRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Ref IrsaRoleName
+      RoleName: !Sub "${NamePrefix}${IrsaRoleName}"
       Description: EKS IRSA role for org-cost-api (payer CE, ListAccounts, AssumeRole to members).
       AssumeRolePolicyDocument:
         Fn::Sub:
@@ -56,7 +62,7 @@ Resources:
             KubernetesNamespace: !Ref KubernetesNamespace
             ServiceAccountName: !Ref ServiceAccountName
       Policies:
-        - PolicyName: OrgCostApiIrsa
+        - PolicyName: !Sub "${NamePrefix}OrgCostApiIrsa"
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
@@ -92,7 +98,7 @@ Resources:
                 Effect: Allow
                 Action:
                   - sts:AssumeRole
-                Resource: !Sub "arn:aws:iam::*:role/${MemberRoleName}"
+                Resource: !Sub "arn:aws:iam::*:role/${NamePrefix}${MemberRoleName}"
               - Sid: STSIdentity
                 Effect: Allow
                 Action:
@@ -104,5 +110,5 @@ Outputs:
     Description: EKS IRSA role ARN — Helm serviceAccount annotation.
     Value: !GetAtt OrgCostApiIrsaRole.Arn
   IrsaRoleName:
-    Description: EKS IRSA IAM role name.
-    Value: !Ref IrsaRoleName
+    Description: EKS IRSA IAM role name (includes NamePrefix).
+    Value: !Sub "${NamePrefix}${IrsaRoleName}"

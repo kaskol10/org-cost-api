@@ -50,6 +50,7 @@ On each `v*` tag, images are pushed to `ghcr.io/kaskol10/org-cost-api`:
 | `:prod` | Production API + UI |
 | `:api` | API only |
 | `:chat` / `:org-cost-chat` | Chat agent (`mcp-server/Dockerfile`) |
+| Helm OCI `.../charts/org-cost-api` | Chart from `deploy/helm/org-cost-api` (version = tag without `v`) |
 
 Versioned aliases are also pushed (e.g. `:chat-v0.0.1`, `:prod-v0.0.1`).
 

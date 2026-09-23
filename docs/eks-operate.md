@@ -24,31 +24,33 @@ Details: [deploy/eks/README.md](../deploy/eks/README.md).
 
 ---
 
-## 2. IAM onboarding (one command)
+## 2. IAM onboarding (two commands)
 
-From the **Master (org management) account**, run the onboarding script. It creates:
-
-- `OrgCostReadOnly` in every account in the target OU
-- `org-cost-api-irsa` in the deploy account (shared-services)
+Split so the EKS team and the org-management team can each use only their own credentials. Run **deploy first**.
 
 ```bash
-# OIDC provider ARN (run in deploy / EKS account)
+# OIDC provider ARN (deploy / EKS account)
 ISSUER=$(aws eks describe-cluster --name YOUR_CLUSTER \
   --profile Shared-Services.AdministratorAccess \
   --query 'cluster.identity.oidc.issuer' --output text)
 OIDC_ARN="arn:aws:iam::444455556666:oidc-provider/${ISSUER#https://}"
 
-# One-command IAM onboarding (Master account)
-./deploy/aws/onboard-iam.sh \
-  --profile Master.AdministratorAccess \
-  --deploy-account-profile Shared-Services.AdministratorAccess \
-  --payer-account-id 111122223333 \
+./deploy/aws/onboard-iam.sh deploy \
+  --profile Shared-Services.AdministratorAccess \
   --deploy-account-id 444455556666 \
   --oidc-provider-arn "$OIDC_ARN" \
+  --namespace monitoring
+
+./deploy/aws/onboard-iam.sh payer \
+  --profile Master.AdministratorAccess \
+  --payer-account-id 111122223333 \
+  --deploy-account-id 444455556666 \
   --ou-id ou-abcd-12345678
 ```
 
 Replace `ou-abcd-12345678` with your OU ID (`ou-...`, not organization ID `o-...`). For a pilot, use `--accounts 444455556666,111122223333` instead of `--ou-id`.
+
+If one person has both profiles, omit the subcommand and pass `--deploy-account-profile` (see [deploy/aws/README.md](../deploy/aws/README.md)).
 
 The script prints the Helm `serviceAccount` annotation when complete.
 
@@ -216,7 +218,7 @@ Bootstrap and StackSet assume **payer-linked** CE. Accounts with their own billi
 
 | Symptom | Check |
 |---------|--------|
-| StackSet `Invalid principal` | Re-run `./deploy/aws/onboard-iam.sh` — deploy account is provisioned first so IRSA exists before member accounts |
+| StackSet `Invalid principal` | Run `./deploy/aws/onboard-iam.sh deploy` first so IRSA exists, then `payer` |
 | `/api/ready` fails STS | IRSA annotation matches `org-cost-api-irsa`; ServiceAccount name/namespace match StackSet params |
 | Empty account list | Bootstrap Job logs; `organizations:ListAccounts` on IRSA role |
 | HTTPRoute not routing | Gateway listener `sectionName`, controller logs, hostname on HTTPRoute |

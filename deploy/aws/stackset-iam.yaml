@@ -15,6 +15,12 @@ Parameters:
     Description: Organization management (payer) account ID.
     AllowedPattern: "^[0-9]{12}$"
 
+  NamePrefix:
+    Type: String
+    Default: ""
+    Description: Optional prefix for IAM role and inline policy names (e.g. acme-).
+    AllowedPattern: "^$|^[A-Za-z0-9+=,.@_-]+$"
+
   IrsaRoleName:
     Type: String
     Default: org-cost-api-irsa
@@ -35,7 +41,7 @@ Resources:
   OrgCostReadOnlyRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Ref RoleName
+      RoleName: !Sub "${NamePrefix}${RoleName}"
       Description: !Sub "org-cost-api member read-only (trust v${TrustVersion})"
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
@@ -43,13 +49,13 @@ Resources:
           - Sid: TrustEksIrsa
             Effect: Allow
             Principal:
-              AWS: !Sub "arn:aws:iam::${DeployAccountId}:role/${IrsaRoleName}"
+              AWS: !Sub "arn:aws:iam::${DeployAccountId}:role/${NamePrefix}${IrsaRoleName}"
             Action: sts:AssumeRole
       Tags:
         - Key: org-cost-api/trust-version
           Value: !Ref TrustVersion
       Policies:
-        - PolicyName: OrgCostReadOnly
+        - PolicyName: !Sub "${NamePrefix}OrgCostReadOnly"
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
@@ -105,10 +111,10 @@ Resources:
 Outputs:
   OrgCostReadOnlyRoleArn:
     Description: OrgCostReadOnly role ARN in this account.
-    Value: !Sub "arn:aws:iam::${AWS::AccountId}:role/${RoleName}"
+    Value: !Sub "arn:aws:iam::${AWS::AccountId}:role/${NamePrefix}${RoleName}"
   OrgCostReadOnlyRoleName:
-    Description: OrgCostReadOnly IAM role name.
-    Value: !Ref RoleName
+    Description: OrgCostReadOnly IAM role name (includes NamePrefix).
+    Value: !Sub "${NamePrefix}${RoleName}"
   TrustedIrsaArn:
     Description: IRSA role trusted by this account's OrgCostReadOnly.
-    Value: !Sub "arn:aws:iam::${DeployAccountId}:role/${IrsaRoleName}"
+    Value: !Sub "arn:aws:iam::${DeployAccountId}:role/${NamePrefix}${IrsaRoleName}"
