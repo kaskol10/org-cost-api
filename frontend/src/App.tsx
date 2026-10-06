@@ -17,13 +17,16 @@ import type { DashboardResponse, DailyCost, ReportResponse, SuggestionsResponse,
 type Tab = "ask" | "explore";
 
 function mergeDaily(
-  accounts: DashboardResponse["accounts"],
+  accounts: DashboardResponse["accounts"] | undefined,
   field: "daily" | "all_daily"
 ): DailyCost[] {
   const byDate = new Map<string, number>();
+  if (!Array.isArray(accounts)) return [];
   for (const acct of accounts) {
     if (!acct.costs) continue;
-    for (const d of acct.costs[field] ?? []) {
+    const series = acct.costs[field];
+    if (!Array.isArray(series)) continue;
+    for (const d of series) {
       byDate.set(d.date, (byDate.get(d.date) ?? 0) + d.amount);
     }
   }
@@ -119,12 +122,12 @@ export default function App() {
   }, [load]);
 
   const consolidatedOrgDaily = useMemo(
-    () => (data?.accounts.length ? mergeDaily(data.accounts, "all_daily") : []),
+    () => (Array.isArray(data?.accounts) && data.accounts.length ? mergeDaily(data.accounts, "all_daily") : []),
     [data]
   );
 
   const consolidatedEC2Daily = useMemo(
-    () => (data?.accounts.length ? mergeDaily(data.accounts, "daily") : []),
+    () => (Array.isArray(data?.accounts) && data.accounts.length ? mergeDaily(data.accounts, "daily") : []),
     [data]
   );
 
@@ -138,7 +141,7 @@ export default function App() {
   );
 
   const topAccountsBySpend = useMemo(() => {
-    if (!data?.accounts.length) return [];
+    if (!Array.isArray(data?.accounts) || !data.accounts.length) return [];
     return [...data.accounts]
       .filter((a) => a.costs && !a.error)
       .sort((a, b) => (b.costs?.all_total ?? 0) - (a.costs?.all_total ?? 0))
@@ -146,8 +149,12 @@ export default function App() {
   }, [data?.accounts]);
 
   const accountStrip = useMemo(() => {
-    const increases = trends?.top_account_increases ?? [];
-    const decreases = trends?.top_account_decreases ?? [];
+    const increases = Array.isArray(trends?.top_account_increases)
+      ? trends.top_account_increases
+      : [];
+    const decreases = Array.isArray(trends?.top_account_decreases)
+      ? trends.top_account_decreases
+      : [];
     const hasMovers =
       !!trends?.prior_source && (increases.length > 0 || decreases.length > 0);
     if (hasMovers) {

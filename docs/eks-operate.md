@@ -143,7 +143,7 @@ Probe table: [getting-started.md § Production auth](./getting-started.md#produc
 
 ## 6. Optional — Chat / LLM
 
-The Helm chart deploys **API+UI only** by default. Conversational Ask needs a second image (`org-cost-chat`) and a UI rebuild that bakes in `VITE_CHAT_URL`.
+The Helm chart deploys **API+UI only** by default. Conversational Ask needs the chat image (`org-cost-chat`) and a `:prod` UI built with `VITE_CHAT_URL=same-origin` (GHCR default) so the browser uses this site’s `/v1/chat` route. Do not bake a hostname — that breaks other tenants (CORS + wrong chat backend).
 
 1. **Build and push** the chat image:
 
@@ -154,11 +154,11 @@ docker build --platform linux/arm64 \
 # docker push …
 ```
 
-2. **Rebuild API/UI** so the browser knows where chat lives (same Gateway host; HTTPRoute sends `/v1/chat` and `/v1/suggestions` to the chat Service):
+2. **Use a `:prod` UI** built with `VITE_CHAT_URL=same-origin` (or omit the arg and rely on the publish workflow default). HTTPRoute sends `/v1/chat` and `/v1/suggestions` to the chat Service on the same hostname:
 
 ```bash
 docker build --platform linux/arm64 --target prod-ui \
-  --build-arg VITE_CHAT_URL=https://costs.internal.example.com \
+  --build-arg VITE_CHAT_URL=same-origin \
   -t YOUR_REGISTRY/org-cost-api:latest .
 # docker push …  then bump image.tag in your values overlay
 ```
@@ -192,7 +192,7 @@ curl -s https://costs.internal.example.com/v1/chat/health
 # expect llm_provider / llm_model populated
 ```
 
-Without `VITE_CHAT_URL` in the UI bundle, Ask stays on rule-based `/api/ask`. Full LLM options: [chat-setup.md](./chat-setup.md).
+Without chat enabled in the UI bundle, Ask stays on rule-based `/api/ask`. Full LLM options: [chat-setup.md](./chat-setup.md).
 
 ---
 

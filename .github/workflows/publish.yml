@@ -31,10 +31,11 @@ jobs:
             tags: |
               ghcr.io/${{ github.repository }}:prod
               ghcr.io/${{ github.repository }}:prod-${{ github.ref_name }}
-            # Baked into the UI at build time (import.meta.env.VITE_CHAT_URL).
-            # Override with repo variable VITE_CHAT_URL if the hostname changes.
+            # same-origin: browser uses /v1/chat on whatever hostname Gateway serves.
+            # Do not bake a tenant hostname — that breaks other sites (CORS + wrong chat backend).
+            # Override with repo variable VITE_CHAT_URL only for a dedicated single-host image.
             build-args: |
-              VITE_CHAT_URL=${{ vars.VITE_CHAT_URL || 'https://costs.internal.resiz.es' }}
+              VITE_CHAT_URL=${{ vars.VITE_CHAT_URL || 'same-origin' }}
     steps:
       - uses: actions/checkout@v4
 

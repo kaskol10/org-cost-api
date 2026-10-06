@@ -78,3 +78,19 @@ app.kubernetes.io/component: mcp
 {{- end }}
 {{- join "," $hosts }}
 {{- end }}
+
+{{- define "org-cost-api.chat.corsOrigins" -}}
+{{- if .Values.chat.corsOrigins }}
+{{- if kindIs "string" .Values.chat.corsOrigins }}
+{{- .Values.chat.corsOrigins }}
+{{- else }}
+{{- join "," .Values.chat.corsOrigins }}
+{{- end }}
+{{- else }}
+{{- $origins := list }}
+{{- range .Values.hostnames }}
+{{- $origins = append $origins (printf "https://%s" .) }}
+{{- end }}
+{{- join "," $origins }}
+{{- end }}
+{{- end }}

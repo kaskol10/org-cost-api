@@ -2,7 +2,7 @@
 
 Multi-turn **Ask** in the browser uses a Python chat service (`org-cost-chat`) that calls an **OpenAI-compatible LLM** (org **LiteLLM** proxy, local **vLLM**, or similar) and the existing Go API tools. AWS credentials stay on the API host — not in the browser or LLM process.
 
-When `VITE_CHAT_URL` is unset, the Ask tab falls back to rule-based [`POST /api/ask`](../backend/internal/handlers/ask.go) (no LLM).
+When chat is disabled (`VITE_CHAT_URL` unset in a production build), the Ask tab falls back to rule-based [`POST /api/ask`](../backend/internal/handlers/ask.go) (no LLM). Helm `:prod` images use `VITE_CHAT_URL=same-origin` so the browser calls `/v1/chat` on the current hostname.
 
 For Hermes / Cursor agents, see [mcp-setup.md](./mcp-setup.md).
 
@@ -176,14 +176,14 @@ cd frontend && npm run dev
 # open http://localhost:5173 → Chat tab (setup banner shows API / chat / LLM status)
 ```
 
-**Explicit URL** (production build or when not using the Vite proxy):
+**Explicit URL** (when the UI and chat agent are on different origins — e.g. docker-compose.full.yml):
 
 ```bash
 export VITE_CHAT_URL=http://localhost:8090
 npm run dev
 ```
 
-For production Docker builds, set `VITE_CHAT_URL` at build time via [docker-compose.full.yml](../docker-compose.full.yml) or build args.
+**Production / Helm:** do **not** bake a tenant hostname. The `:prod` image is built with `VITE_CHAT_URL=same-origin` so each site uses its own Gateway `/v1/chat` route. Override with repo variable `VITE_CHAT_URL` only for a dedicated single-host image.
 
 ---
 
@@ -214,7 +214,7 @@ For production Docker builds, set `VITE_CHAT_URL` at build time via [docker-comp
 
 | Variable | Description |
 |----------|-------------|
-| `VITE_CHAT_URL` | Chat agent base URL (e.g. `http://localhost:8090`). Empty = rule-based Ask only. |
+| `VITE_CHAT_URL` | Chat agent base URL. Empty in production = rule-based Ask. `same-origin` = relative `/v1/chat` (Helm). Dev unset = Vite `/chat` proxy. |
 
 ---
 
@@ -260,7 +260,7 @@ Returns the same shape as `/api/suggestions` plus optional fields:
 
 When LLM is not configured, returns **503** — the UI keeps rule-based suggestions from `/api/report`.
 
-The dashboard **Cost savings suggestions** panel calls this automatically when `VITE_CHAT_URL` is set.
+The dashboard **Cost savings suggestions** panel calls this automatically when chat is enabled (`VITE_CHAT_URL` set or `same-origin`).
 
 ---
 
@@ -277,7 +277,8 @@ The dashboard **Cost savings suggestions** panel calls this automatically when `
 
 | Symptom | Fix |
 |---------|-----|
-| Ask tab shows single-turn / "Routing…" only | Set `VITE_CHAT_URL` and rebuild or restart Vite |
+| Ask tab shows single-turn / "Routing…" only | Enable chat (`VITE_CHAT_URL` or Vite proxy) and restart |
+| CORS: UI origin A fetching chat on host B | Use `same-origin` prod UI; do not bake another tenant’s hostname |
 | Chat error / connection refused | Ensure `org-cost-chat` is running on :8090 |
 | LLM 401/403 | Check `LLM_BASE_URL` / `LLM_API_KEY` (or `LITELLM_*`) |
 | vLLM: no tool calls | Use a tool-capable model; enable `--enable-auto-tool-choice` on vLLM |
@@ -299,4 +300,4 @@ location /v1/chat {
 }
 ```
 
-Then set `VITE_CHAT_URL` to empty and extend the frontend to use relative `/v1/chat` — optional follow-up.
+Then build the UI with `VITE_CHAT_URL=same-origin` (the GHCR `:prod` default). The browser calls relative `/v1/chat` and `/v1/suggestions` on the same host.

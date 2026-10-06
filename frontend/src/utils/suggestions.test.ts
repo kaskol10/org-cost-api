@@ -44,6 +44,11 @@ describe("summarizeSuggestions", () => {
     ]);
     expect(s.byCategory[0].quantifiedSavingsUsd).toBe(8);
   });
+
+  it("treats a missing suggestions list as empty", () => {
+    const s = summarizeSuggestions(undefined);
+    expect(s.totalCount).toBe(0);
+  });
 });
 
 describe("groupSuggestionsByCategory", () => {
@@ -52,5 +57,9 @@ describe("groupSuggestionsByCategory", () => {
     expect(groups).toHaveLength(3);
     expect(groups[0].category.label).toBe("Waste");
     expect(groups[0].items).toHaveLength(1);
+  });
+
+  it("returns no groups when the list is missing", () => {
+    expect(groupSuggestionsByCategory(null)).toEqual([]);
   });
 });

@@ -96,3 +96,16 @@ def test_explain_suggestions_fallback_on_llm_error(mock_configured, mock_enrich)
     body = res.json()
     assert body["llm_enriched"] is False
     assert "model unavailable" in body.get("enrichment_error", "")
+
+
+def test_cors_origins_from_env(monkeypatch):
+    monkeypatch.setenv(
+        "CHAT_CORS_ORIGINS",
+        "https://costs-a.example.com, https://costs-b.example.com",
+    )
+    from org_cost_mcp.chat_app import _cors_origins
+
+    assert _cors_origins() == [
+        "https://costs-a.example.com",
+        "https://costs-b.example.com",
+    ]

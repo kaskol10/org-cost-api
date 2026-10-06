@@ -67,7 +67,8 @@ export interface SuggestionsSummary {
   byCategory: CategoryRollup[];
 }
 
-export function summarizeSuggestions(items: Suggestion[]): SuggestionsSummary {
+export function summarizeSuggestions(items: Suggestion[] | null | undefined): SuggestionsSummary {
+  const list = Array.isArray(items) ? items : [];
   const buckets = new Map<SuggestionCategory, CategoryRollup>();
 
   for (const cat of CATEGORY_ORDER) {
@@ -85,7 +86,7 @@ export function summarizeSuggestions(items: Suggestion[]): SuggestionsSummary {
   let quantifiedCount = 0;
   let totalQuantifiedSavingsUsd = 0;
 
-  for (const item of items) {
+  for (const item of list) {
     const cat = normalizeCategory(item.category);
     const bucket = buckets.get(cat)!;
     bucket.count += 1;
@@ -99,7 +100,7 @@ export function summarizeSuggestions(items: Suggestion[]): SuggestionsSummary {
   const byCategory = CATEGORY_ORDER.map((c) => buckets.get(c)!).filter((b) => b.count > 0);
 
   return {
-    totalCount: items.length,
+    totalCount: list.length,
     quantifiedCount,
     totalQuantifiedSavingsUsd,
     byCategory,
@@ -107,13 +108,14 @@ export function summarizeSuggestions(items: Suggestion[]): SuggestionsSummary {
 }
 
 export function groupSuggestionsByCategory(
-  items: Suggestion[]
+  items: Suggestion[] | null | undefined
 ): { category: CategoryRollup; items: Suggestion[] }[] {
-  const summary = summarizeSuggestions(items);
+  const list = Array.isArray(items) ? items : [];
+  const summary = summarizeSuggestions(list);
   const groups: { category: CategoryRollup; items: Suggestion[] }[] = [];
 
   for (const rollup of summary.byCategory) {
-    const catItems = items.filter((i) => normalizeCategory(i.category) === rollup.category);
+    const catItems = list.filter((i) => normalizeCategory(i.category) === rollup.category);
     catItems.sort((a, b) => a.priority - b.priority);
     groups.push({ category: rollup, items: catItems });
   }

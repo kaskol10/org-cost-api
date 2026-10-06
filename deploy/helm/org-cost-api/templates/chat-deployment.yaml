@@ -65,6 +65,10 @@ spec:
                   name: {{ if .Values.existingSecret }}{{ .Values.existingSecret }}{{ else }}{{ include "org-cost-api.fullname" . }}-token{{ end }}
                   key: {{ .Values.existingSecretKey | default "ORG_COST_API_TOKEN" }}
             {{- end }}
+            {{- with (include "org-cost-api.chat.corsOrigins" .) }}
+            - name: CHAT_CORS_ORIGINS
+              value: {{ . | quote }}
+            {{- end }}
             {{- range $k, $v := .Values.chat.extraEnv }}
             - name: {{ $k }}
               value: {{ $v | quote }}
