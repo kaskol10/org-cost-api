@@ -5,6 +5,7 @@ import {
   apiUrl,
   chatBase,
   chatEnabled,
+  chatUrl,
   fetchAsk,
   fetchReport,
   fetchServiceTagTotals,
@@ -108,14 +109,15 @@ describe("fetchAsk", () => {
   });
 });
 
-describe("chatBase / chatEnabled", () => {
+describe("chatBase / chatEnabled / chatUrl", () => {
   it("uses /chat dev proxy when VITE_CHAT_URL is unset in dev", () => {
     vi.stubEnv("VITE_CHAT_URL", "");
     expect(chatBase()).toBe("/chat");
     expect(chatEnabled()).toBe(true);
+    expect(chatUrl("/v1/chat/health")).toBe("/chat/v1/chat/health");
   });
 
-  it("returns empty when VITE_CHAT_URL is unset in production build", () => {
+  it("disables chat when VITE_CHAT_URL is unset in production build", () => {
     vi.stubEnv("VITE_CHAT_URL", "");
     vi.stubEnv("DEV", false);
     vi.stubEnv("PROD", true);
@@ -123,10 +125,27 @@ describe("chatBase / chatEnabled", () => {
     expect(chatEnabled()).toBe(false);
   });
 
+  it("uses same-origin /v1/chat when VITE_CHAT_URL is same-origin", () => {
+    vi.stubEnv("VITE_CHAT_URL", "same-origin");
+    vi.stubEnv("DEV", false);
+    vi.stubEnv("PROD", true);
+    expect(chatBase()).toBe("");
+    expect(chatEnabled()).toBe(true);
+    expect(chatUrl("/v1/chat/health")).toBe("/v1/chat/health");
+    expect(chatUrl("/v1/chat")).toBe("/v1/chat");
+  });
+
   it("strips trailing slashes", () => {
     vi.stubEnv("VITE_CHAT_URL", "http://localhost:8090/");
     expect(chatBase()).toBe("http://localhost:8090");
     expect(chatEnabled()).toBe(true);
+    expect(chatUrl("/v1/chat/health")).toBe("http://localhost:8090/v1/chat/health");
+  });
+
+  it("honors VITE_CHAT_DISABLED", () => {
+    vi.stubEnv("VITE_CHAT_URL", "same-origin");
+    vi.stubEnv("VITE_CHAT_DISABLED", "true");
+    expect(chatEnabled()).toBe(false);
   });
 });
 

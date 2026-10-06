@@ -151,8 +151,8 @@ httpRoute:
             value: /
 
 # --- Chat agent (org-cost-chat) + LLM -----------------------------------------
-# Separate Python service. Browser hits /v1/chat via Gateway; chat calls the
-# in-cluster API. UI must be rebuilt with VITE_CHAT_URL=<public chat base URL>.
+# Separate Python service. Browser hits /v1/chat via Gateway on the same hostname
+# (prod UI is built with VITE_CHAT_URL=same-origin). Chat calls the in-cluster API.
 # See docs/eks-operate.md § Chat / LLM and docs/chat-setup.md.
 
 chat:
@@ -179,6 +179,8 @@ chat:
   # existingSecret: org-cost-llm
   # existingSecretKey: LLM_API_KEY
   extraEnv: {}
+  # Extra CORS origins if the UI is not same-origin. Empty uses https://<hostnames>.
+  corsOrigins: []
   resources: {}
   podAnnotations: {}
   podLabels: {}

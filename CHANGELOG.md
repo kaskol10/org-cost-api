@@ -14,6 +14,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - Split `onboard-iam.sh` into `deploy` (IRSA) and `payer` (StackSet + management OrgCostReadOnly) so each side can run with only its own credentials
 - Optional `--name-prefix` / CloudFormation `NamePrefix` for customer-scoped IAM role, policy, and stack names
+- Prod UI chat is same-origin (`VITE_CHAT_URL=same-origin`): the browser calls `/v1/chat` on the current hostname instead of a baked chat URL
+
+### Fixed
+
+- Multi-tenant Helm: a site on its own hostname no longer fetches another tenant’s chat URL (CORS) and no longer crashes when suggestion lists are missing (`e is not iterable`)
 
 ## [0.0.5] — 2026-09-10
 

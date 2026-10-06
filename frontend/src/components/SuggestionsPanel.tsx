@@ -43,17 +43,22 @@ export default function SuggestionsPanel({
 }: Props) {
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
 
-  const summary = useMemo(
-    () => (suggestions ? summarizeSuggestions(suggestions.suggestions) : null),
+  const items = useMemo(
+    () => (Array.isArray(suggestions?.suggestions) ? suggestions.suggestions : []),
     [suggestions]
+  );
+
+  const summary = useMemo(
+    () => (suggestions ? summarizeSuggestions(items) : null),
+    [suggestions, items]
   );
 
   const groups = useMemo(() => {
     if (!suggestions) return [];
-    const all = groupSuggestionsByCategory(suggestions.suggestions);
+    const all = groupSuggestionsByCategory(items);
     if (categoryFilter === "all") return all;
     return all.filter((g) => g.category.category === categoryFilter);
-  }, [suggestions, categoryFilter]);
+  }, [suggestions, items, categoryFilter]);
 
   if (loading) {
     return (
@@ -64,7 +69,7 @@ export default function SuggestionsPanel({
     );
   }
 
-  if (!suggestions || suggestions.suggestions.length === 0 || !summary) {
+  if (!suggestions || items.length === 0 || !summary) {
     return null;
   }
 

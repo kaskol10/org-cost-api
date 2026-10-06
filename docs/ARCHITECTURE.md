@@ -79,12 +79,12 @@ See [mcp-setup.md](./mcp-setup.md) for Hermes and Cursor configuration.
 
 ## Conversational Ask (optional)
 
-When `VITE_CHAT_URL` points at `org-cost-chat`:
+When chat is enabled (`VITE_CHAT_URL` set, `same-origin`, or the Vite `/chat` proxy):
 
-1. Browser sends messages to `POST /v1/chat` (SSE).
+1. Browser sends messages to `POST /v1/chat` (SSE) — same origin on Helm.
 2. Chat agent calls LiteLLM with tool definitions mirroring MCP tools.
 3. Tool handlers call the Go API via the same HTTP client as MCP.
-4. Without `VITE_CHAT_URL`, Ask uses rule-based `POST /api/ask` only.
+4. Without chat enabled, Ask uses rule-based `POST /api/ask` only.
 
 See [chat-setup.md](./chat-setup.md).
 

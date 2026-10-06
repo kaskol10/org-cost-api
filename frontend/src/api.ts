@@ -82,17 +82,37 @@ export async function fetchAsk(
   return res.json();
 }
 
-/** Base URL for the chat agent. Empty when conversational Ask is disabled. */
-export function chatBase(): string {
+const SAME_ORIGIN_CHAT = new Set(["same-origin", ".", "/"]);
+
+function chatMode(): { enabled: boolean; prefix: string } {
+  if (import.meta.env.VITE_CHAT_DISABLED === "true") {
+    return { enabled: false, prefix: "" };
+  }
   const raw = import.meta.env.VITE_CHAT_URL?.trim();
-  if (raw) return raw.replace(/\/+$/, "");
+  if (raw && SAME_ORIGIN_CHAT.has(raw.replace(/\/+$/, "") || raw)) {
+    // Production Gateway: browser origin already routes /v1/chat to the chat Service.
+    return { enabled: true, prefix: "" };
+  }
+  if (raw) {
+    return { enabled: true, prefix: raw.replace(/\/+$/, "") };
+  }
   // Vite dev proxy: /chat → localhost:8090 (see vite.config.ts)
-  if (import.meta.env.DEV) return "/chat";
-  return "";
+  if (import.meta.env.DEV) return { enabled: true, prefix: "/chat" };
+  return { enabled: false, prefix: "" };
+}
+
+/** Base URL for the chat agent. Empty for same-origin `/v1/chat` or when disabled. */
+export function chatBase(): string {
+  return chatMode().prefix;
 }
 
 export function chatEnabled(): boolean {
-  return chatBase() !== "";
+  return chatMode().enabled;
+}
+
+/** Browser path for a chat API route (e.g. `/v1/chat/health`). */
+export function chatUrl(path: string): string {
+  return `${chatMode().prefix}${path}`;
 }
 
 export type ChatHealthResponse = {
@@ -106,11 +126,10 @@ export type ChatHealthResponse = {
 };
 
 export async function fetchChatHealth(signal?: AbortSignal): Promise<ChatHealthResponse> {
-  const base = chatBase();
-  if (!base) {
-    throw new Error("Chat is not configured (set VITE_CHAT_URL)");
+  if (!chatEnabled()) {
+    throw new Error("Chat is not configured (set VITE_CHAT_URL or same-origin)");
   }
-  const res = await fetch(`${base}/v1/chat/health`, { signal });
+  const res = await fetch(chatUrl("/v1/chat/health"), { signal });
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { detail?: string };
     const msg = body.detail ?? `Chat health failed (${res.status})`;
@@ -212,11 +231,10 @@ export async function streamChat(
   onEvent: (ev: ChatEvent) => void,
   signal?: AbortSignal
 ): Promise<void> {
-  const base = chatBase();
-  if (!base) {
-    throw new Error("Chat is not configured (set VITE_CHAT_URL)");
+  if (!chatEnabled()) {
+    throw new Error("Chat is not configured (set VITE_CHAT_URL or same-origin)");
   }
-  const res = await fetch(`${base}/v1/chat`, {
+  const res = await fetch(chatUrl("/v1/chat"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ session_id: sessionId, message, refresh }),
@@ -238,11 +256,10 @@ export async function fetchExplainedSuggestions(
   report?: Pick<ReportResponse, "dashboard" | "trends" | "suggestions">,
   signal?: AbortSignal
 ): Promise<SuggestionsResponse> {
-  const base = chatBase();
-  if (!base) {
-    throw new Error("Chat is not configured (set VITE_CHAT_URL)");
+  if (!chatEnabled()) {
+    throw new Error("Chat is not configured (set VITE_CHAT_URL or same-origin)");
   }
-  const res = await fetch(`${base}/v1/suggestions/explain`, {
+  const res = await fetch(chatUrl("/v1/suggestions/explain"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
