@@ -33,6 +33,13 @@ SAMPLE_DASHBOARD = {
             "snapshots": {"count": 3, "total_size_gib": 50},
         }
     ],
+    "commitments": {
+        "has_commitments": True,
+        "sp_coverage_pct": 55.0,
+        "sp_utilization_pct": 72.0,
+        "ri_coverage_pct": 12.0,
+        "uncommitted_usd": 9400.0,
+    },
 }
 
 SAMPLE_TRENDS = {
@@ -52,6 +59,16 @@ SAMPLE_TRENDS = {
         }
     ],
     "top_decreases": [],
+    "spikes": [
+        {
+            "date": "2026-08-12",
+            "amount_usd": 300,
+            "baseline_usd": 100,
+            "deviation_pct": 200,
+            "direction": "up",
+            "account_ids": ["123"],
+        }
+    ],
 }
 
 SAMPLE_SUGGESTIONS = {
@@ -73,6 +90,24 @@ SAMPLE_REPORT = {
     "suggestions": SAMPLE_SUGGESTIONS,
     "ce_calls_used": 0,
     "refresh_allowed": True,
+    "forecast": {
+        "projected_usd": 5200,
+        "mtd_usd": 4200,
+        "days_elapsed": 25,
+        "days_in_month": 31,
+        "daily_average": 168,
+        "method": "daily-average over 25 MTD days",
+    },
+    "budgets": [
+        {
+            "name": "org",
+            "monthly_usd": 5000,
+            "projected_usd": 5200,
+            "percent_of_budget": 104,
+            "status": "over",
+            "over_by_usd": 200,
+        }
+    ],
 }
 
 
@@ -139,6 +174,16 @@ def test_get_waste_signals(mock_fetch):
     mock_fetch.assert_called_once_with(refresh=False)
 
 
+@patch.object(server, "fetch_dashboard", return_value=SAMPLE_DASHBOARD)
+def test_get_waste_signals_includes_commitments(mock_fetch):
+    out = json.loads(server.get_waste_signals())
+    assert "commitments" in out
+    assert out["commitments"]["sp_utilization_pct"] == 72.0
+    assert out["commitments"]["uncommitted_usd"] == 9400.0
+    # low utilization should add a guidance note
+    assert any("savings-plan" in g.lower() for g in out["guidance"])
+
+
 @patch.object(server, "fetch_suggestions", return_value=SAMPLE_SUGGESTIONS)
 def test_get_cost_suggestions(mock_fetch):
     out = json.loads(server.get_cost_suggestions())
@@ -190,11 +235,36 @@ def test_get_cost_report_no_html(mock_fetch, mock_md, mock_html):
     mock_html.assert_not_called()
 
 
+@patch.object(server, "fetch_report", return_value=SAMPLE_REPORT)
+def test_get_forecast(mock_fetch):
+    out = json.loads(server.get_forecast())
+    assert out["forecast"]["projected_usd"] == 5200
+    assert out["budgets"][0]["status"] == "over"
+    assert out["budgets"][0]["over_by_usd"] == 200
+    # filtered to a non-matching budget -> empty
+    out2 = json.loads(server.get_forecast(budget_name="nope"))
+    assert out2["budgets"] == []
+    assert mock_fetch.call_count == 2
+
+
+@patch.object(server, "fetch_report", return_value=SAMPLE_REPORT)
+def test_get_cost_anomalies(mock_fetch):
+    out = json.loads(server.get_cost_anomalies(refresh=False))
+    assert out["spike_count"] == 1
+    assert out["spikes"][0]["date"] == "2026-08-12"
+    assert out["spikes"][0]["direction"] == "up"
+    # account id mapped to name from the dashboard fixture
+    assert out["spikes"][0]["accounts"] == ["production"]
+
+
 def test_build_markdown_report_includes_sections():
     md = build_markdown_report(SAMPLE_DASHBOARD, SAMPLE_TRENDS, SAMPLE_SUGGESTIONS)
     assert "# AWS organization cost report" in md
     assert "Biggest increases" in md
     assert "Savings opportunities" in md
+    assert "Daily spikes" in md
+    assert "Commitments (savings plans / RI)" in md
+    assert "SP utilization" in md and "72%" in md
 
 
 def test_build_markdown_report_html_path():

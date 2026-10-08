@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/kaskol10/org-cost-api/backend/internal/analysis"
@@ -19,6 +20,10 @@ type ReportResponse struct {
 	Suggestions    *analysis.SuggestionsResponse   `json:"suggestions"`
 	CECallsUsed    int                             `json:"ce_calls_used"`
 	RefreshAllowed bool                            `json:"refresh_allowed"`
+	// Forecast is the projected end-of-month org spend.
+	Forecast *analysis.ForecastResult `json:"forecast,omitempty"`
+	// Budgets compares the projection to configured budgets.
+	Budgets []*analysis.BudgetStatus `json:"budgets,omitempty"`
 }
 
 // Trends returns period-over-period service spend changes with minimal CE usage.
@@ -53,7 +58,8 @@ func (a *Aggregator) Suggestions(ctx context.Context, force bool, period string)
 	if err != nil {
 		trends = nil
 	}
-	out := analysis.BuildSuggestions(view, trends)
+	_, budgets := buildForecastAndBudgets(a.cfg, view)
+	out := analysis.BuildSuggestions(view, trends, budgets)
 	if trends != nil {
 		out.CECallsUsed = trends.CECallsUsed
 	}
@@ -103,6 +109,9 @@ func (a *Aggregator) trendsFromView(ctx context.Context, dash *DashboardResponse
 			End:   priorEnd,
 			Days:  appconfig.PeriodDayCount(priorStart, priorEnd),
 		}
+		resp.Spikes = analysis.DetectSpikesWithAccounts(view.OrgDaily, view.AccountDaily, analysis.SpikeParams{
+			SkipLast: view.IncompleteDays,
+		})
 		return resp
 	}
 
@@ -252,10 +261,11 @@ func demoPriorFromView(view analysis.DashboardView) (map[string]float64, map[str
 
 func toDashboardView(dash *DashboardResponse) analysis.DashboardView {
 	view := analysis.DashboardView{
-		GeneratedAt: dash.GeneratedAt,
-		Start:       dash.Start,
-		End:         dash.End,
-		OrgTotal:    dash.Totals.OrgTotal,
+		GeneratedAt:    dash.GeneratedAt,
+		Start:          dash.Start,
+		End:            dash.End,
+		OrgTotal:       dash.Totals.OrgTotal,
+		IncompleteDays: dash.IncompleteDays,
 		Totals: analysis.TotalsView{
 			OrgTotal:                 dash.Totals.OrgTotal,
 			VolumeAvailable:          dash.Totals.VolumeAvailable,
@@ -263,6 +273,16 @@ func toDashboardView(dash *DashboardResponse) analysis.DashboardView {
 			VolumeFilesystemUsedGiB:  dash.Totals.VolumeFilesystemUsedGiB,
 			VolumeUtilizationPercent: dash.Totals.VolumeUtilizationPercent,
 		},
+	}
+	view.OrgDaily, view.AccountDaily = mergeDailySeries(dash)
+	if dash.Commitments != nil && dash.Commitments.HasData() {
+		view.Commitments = &analysis.CommitmentView{
+			SPCoveragePct:    dash.Commitments.SPCoveragePct,
+			SPUtilizationPct: dash.Commitments.SPUtilizationPct,
+			RICoveragePct:    dash.Commitments.RICoveragePct,
+			UncommittedUSD:   dash.Commitments.UncommittedUSD,
+			HasCommitments:   dash.Commitments.HasCommitments,
+		}
 	}
 	for _, s := range dash.TopServices {
 		view.TopServices = append(view.TopServices, analysis.ServiceDriverView{
@@ -311,6 +331,10 @@ func (a *Aggregator) recordSnapshot(dash *DashboardResponse) {
 		PeriodEnd:   dash.End,
 		OrgTotal:    dash.Totals.OrgTotal,
 	}
+	if orgDaily, acctDaily := mergeDailySeries(dash); orgDaily != nil {
+		snap.OrgDaily = toHistoryDaily(orgDaily)
+		snap.AccountDaily = toHistoryAccountDaily(acctDaily)
+	}
 	for _, s := range dash.TopServices {
 		snap.Services = append(snap.Services, history.ServiceAmount{
 			Service: s.Service,
@@ -343,6 +367,34 @@ func priorPeriod(currentStart, currentEnd string) (string, string) {
 	return appconfig.PriorPeriodFor(appconfig.PeriodLookback, currentStart, currentEnd)
 }
 
+// mergeDailySeries builds org-wide + per-account daily spend from dashboard
+// account costs (usage, all services).
+func mergeDailySeries(dash *DashboardResponse) (org []analysis.DailyPoint, perAccount []analysis.AccountDailyView) {
+	byDate := make(map[string]float64)
+	for _, acct := range dash.Accounts {
+		if acct.Error != "" || acct.Costs == nil {
+			continue
+		}
+		ad := analysis.AccountDailyView{
+			AccountID:   acct.AccountID,
+			AccountName: acct.AccountName,
+		}
+		for _, d := range acct.Costs.AllDaily {
+			byDate[d.Date] += d.Amount
+			ad.Daily = append(ad.Daily, analysis.DailyPoint{Date: d.Date, Amount: d.Amount})
+		}
+		if len(ad.Daily) > 0 {
+			perAccount = append(perAccount, ad)
+		}
+	}
+	org = make([]analysis.DailyPoint, 0, len(byDate))
+	for date, amount := range byDate {
+		org = append(org, analysis.DailyPoint{Date: date, Amount: amount})
+	}
+	sort.Slice(org, func(i, j int) bool { return org[i].Date < org[j].Date })
+	return org, perAccount
+}
+
 func cacheFresh(fetchedAt string, maxHours int) bool {
 	t, err := time.Parse(time.RFC3339, fetchedAt)
 	if err != nil {
@@ -355,6 +407,26 @@ func toHistoryServices(m map[string]float64) []history.ServiceAmount {
 	out := make([]history.ServiceAmount, 0, len(m))
 	for svc, amt := range m {
 		out = append(out, history.ServiceAmount{Service: svc, Amount: amt})
+	}
+	return out
+}
+
+func toHistoryDaily(points []analysis.DailyPoint) []history.DailyPoint {
+	out := make([]history.DailyPoint, len(points))
+	for i, p := range points {
+		out[i] = history.DailyPoint{Date: p.Date, Amount: p.Amount}
+	}
+	return out
+}
+
+func toHistoryAccountDaily(accounts []analysis.AccountDailyView) []history.AccountDaily {
+	out := make([]history.AccountDaily, len(accounts))
+	for i, a := range accounts {
+		out[i] = history.AccountDaily{
+			AccountID:   a.AccountID,
+			AccountName: a.AccountName,
+			Daily:       toHistoryDaily(a.Daily),
+		}
 	}
 	return out
 }

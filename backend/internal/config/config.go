@@ -39,12 +39,26 @@ type CURConfig struct {
 	Partitioned bool   `yaml:"partitioned"` // set true if table has year/month columns
 }
 
+// Budget is a monthly spend budget for over-budget detection.
+// Account, when set, scopes the budget to one account's projected spend.
+type Budget struct {
+	Name       string  `yaml:"name"`
+	MonthlyUSD float64 `yaml:"monthly_usd"`
+	Account    string  `yaml:"account,omitempty"` // account name or id; empty = org-wide
+}
+
 type Config struct {
 	Accounts   []Account `yaml:"accounts"`
 	ListenAddr string    `yaml:"listen_addr"`
 	CORSOrigin string    `yaml:"cors_origin"`
 	// CostLookbackDays is how far back to query Cost Explorer (max useful ~14 months).
 	CostLookbackDays int `yaml:"cost_lookback_days"`
+	// CostLag is how many recent days CE data is incomplete (default 2, max 7).
+	CostLag int `yaml:"cost_lag,omitempty"`
+	// IncludeTax keeps Tax records in cost queries. Default false: AWS bills
+	// tax as a lump on the 1st of the month, which distorts daily series
+	// (faked day-1 spike) and month-over-month deltas. Set true to include tax.
+	IncludeTax bool `yaml:"include_tax,omitempty"`
 	// BillingProfile is the Granted/AWS profile for the organization payer (e.g. Master).
 	// When set, all Cost Explorer queries run from that account with a per-account LINKED_ACCOUNT filter.
 	BillingProfile string `yaml:"billing_profile,omitempty"`
@@ -68,6 +82,8 @@ type Config struct {
 	APIToken    string `yaml:"api_token,omitempty"`
 	APITokenEnv string `yaml:"api_token_env,omitempty"`
 	CUR            *CURConfig `yaml:"cur,omitempty"`
+	// Budgets are monthly spend budgets for over-budget detection (see Budget).
+	Budgets []Budget `yaml:"budgets,omitempty"`
 	// Demo serves fixture data only — no AWS calls (also enabled via ORG_COST_DEMO=1).
 	Demo bool `yaml:"demo,omitempty"`
 }
@@ -151,6 +167,13 @@ func finalizeDemoConfig(cfg *Config) (*Config, error) {
 			{ID: "444444444444", Name: "sandbox"},
 			{ID: "555555555555", Name: "legacy"},
 		}
+	}
+	if cfg.CostLag < 0 {
+		cfg.CostLag = 2
+	}
+	if len(cfg.Budgets) == 0 {
+		// Demo org runs ~$72k/month; a $65k budget puts the projection over.
+		cfg.Budgets = []Budget{{Name: "org", MonthlyUSD: 65000}}
 	}
 	if dir := strings.TrimSpace(os.Getenv("HISTORY_DIR")); dir != "" {
 		cfg.HistoryDir = dir

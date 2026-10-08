@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -85,6 +86,7 @@ func NewAggregator(cfg *appconfig.Config) (*Aggregator, error) {
 	}
 
 	agg := &Aggregator{cfg: cfg, clients: clients, billingByProfile: make(map[string]*ceapi.Client)}
+	costexplorer.ExcludeTaxRecords = !cfg.IncludeTax
 	hours := cfg.DashboardCacheHours
 	if hours <= 0 {
 		hours = 12
@@ -167,6 +169,17 @@ type DashboardResponse struct {
 	TopServices  []OrgServiceDriver  `json:"top_services,omitempty"`
 	CUREnabled   bool                `json:"cur_enabled"`
 	CURNote      string              `json:"cur_note,omitempty"`
+	// IncompleteDays is how many of the most recent days CE data is still lagging (typically 1-2).
+	IncompleteDays int `json:"incomplete_days,omitempty"`
+	// TaxExcluded reports whether Tax records were excluded from cost queries.
+	// Default true: AWS bills tax as a lump on the 1st of each month, which
+	// distorts daily series and period-over-period comparisons.
+	TaxExcluded bool `json:"tax_excluded,omitempty"`
+	// Tax isolates Tax records (shown separately from usage when TaxExcluded).
+	// It reveals the lump-on-the-1st pattern AWS uses for billing tax.
+	Tax *costexplorer.TaxBreakdown `json:"tax,omitempty"`
+	// Commitments summarizes savings-plan / RI coverage (payer CE only).
+	Commitments *costexplorer.CommitmentCoverage `json:"commitments,omitempty"`
 }
 
 type AccountDashboard struct {
@@ -544,14 +557,35 @@ func (a *Aggregator) buildDashboard(ctx context.Context, start, end, key string)
 	}
 	totals.AccountCount = successCount
 
+	// Commitment coverage (savings plans / RI) — payer CE only, best-effort.
+	commitments, ceCommit := a.commitmentCoverage(ctx, start, end)
+	if ceCommit > 0 {
+		log.Printf("endpoint=dashboard commitments ce_calls=%d", ceCommit)
+	}
+
+	// Tax breakdown — payer CE only, best-effort. Shown when tax is excluded
+	// from usage totals so the lump-on-the-1st amount stays visible.
+	var tax *costexplorer.TaxBreakdown
+	if costexplorer.ExcludeTaxRecords {
+		var ceTax int
+		tax, ceTax = a.taxBreakdown(ctx, start, end)
+		if ceTax > 0 {
+			log.Printf("endpoint=dashboard tax ce_calls=%d", ceTax)
+		}
+	}
+
 	resp := &DashboardResponse{
-		Start:       start,
-		End:         end,
-		Accounts:    accounts,
-		Totals:      totals,
-		TopServices: buildOrgTopServices(accounts, totals.OrgTotal, totals.Unit),
-		CUREnabled:  a.curClient != nil && curInv != nil,
-		CURNote:     curNote,
+		Start:          start,
+		End:            end,
+		Accounts:       accounts,
+		Totals:         totals,
+		TopServices:    buildOrgTopServices(accounts, totals.OrgTotal, totals.Unit),
+		CUREnabled:     a.curClient != nil && curInv != nil,
+		CURNote:        curNote,
+		IncompleteDays: a.cfg.CostLagDays(),
+		TaxExcluded:    costexplorer.ExcludeTaxRecords,
+		Tax:            tax,
+		Commitments:    commitments,
 	}
 
 	a.cacheMu.Lock()
@@ -564,6 +598,75 @@ func (a *Aggregator) buildDashboard(ctx context.Context, start, end, key string)
 	a.recordSnapshot(resp)
 
 	return resp, nil
+}
+
+// commitmentCoverage fetches savings-plan/RI coverage from the payer CE client,
+// cached on disk (24h) so the CE calls run once per day, not per request.
+// Returns nil when no payer CE client is configured.
+func (a *Aggregator) commitmentCoverage(ctx context.Context, start, end string) (*costexplorer.CommitmentCoverage, int) {
+	if a.billingCost == nil {
+		return nil, 0
+	}
+	key := "commitments:" + start + ":" + end
+	// Try the disk cache first.
+	if a.history != nil {
+		if raw, _, err := a.history.LoadDashboardCache(key, 24*time.Hour); err == nil {
+			var c costexplorer.CommitmentCoverage
+			if json.Unmarshal(raw, &c) == nil && c.HasData() {
+				return &c, 0
+			}
+		}
+	}
+	c, calls, err := costexplorer.GetCommitmentCoverage(ctx, a.billingCost, start, end)
+	if err != nil || c == nil || !c.HasData() {
+		return nil, calls
+	}
+	if a.history != nil {
+		_ = a.history.SaveDashboardCache(key, c, time.Now().UTC())
+	}
+	return c, calls
+}
+
+// taxBreakdown fetches the org tax breakdown from the payer CE client:
+// a difference-method total (two exclusion-filter queries, reliable) plus a
+// best-effort per-service/daily detail (RECORD_TYPE=Tax query, may be empty).
+// Cached on disk (24h) so the CE calls run once per day. Returns nil when no
+// payer CE client is configured or no tax was found.
+func (a *Aggregator) taxBreakdown(ctx context.Context, start, end string) (*costexplorer.TaxBreakdown, int) {
+	if a.billingCost == nil {
+		return nil, 0
+	}
+	key := "tax:" + start + ":" + end
+	if a.history != nil {
+		if raw, _, err := a.history.LoadDashboardCache(key, 24*time.Hour); err == nil {
+			var t costexplorer.TaxBreakdown
+			if json.Unmarshal(raw, &t) == nil && t.Has() {
+				return &t, 0
+			}
+		}
+	}
+	inclTax, _, taxTotal, calls, err := costexplorer.GetOrgTaxTotals(ctx, a.billingCost, start, end)
+	if err != nil || taxTotal <= 0 {
+		return nil, calls
+	}
+	t := &costexplorer.TaxBreakdown{
+		TotalUSD:        taxTotal,
+		InclTaxTotalUSD: inclTax,
+		HasData:         true,
+	}
+	// Best-effort detail: may come back empty (positive record-type filtering
+	// is unreliable); the total above is still correct.
+	bySvc, daily, postedDays, dCalls, derr := costexplorer.GetOrgTaxDetail(ctx, a.billingCost, start, end)
+	if derr == nil {
+		t.ByService = bySvc
+		t.Daily = daily
+		t.PostedDays = postedDays
+	}
+	calls += dCalls
+	if a.history != nil {
+		_ = a.history.SaveDashboardCache(key, t, time.Now().UTC())
+	}
+	return t, calls
 }
 
 func (a *Aggregator) Accounts() []map[string]string {

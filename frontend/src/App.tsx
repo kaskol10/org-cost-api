@@ -7,12 +7,13 @@ import BillingHighlights from "./components/BillingHighlights";
 import CostContextBar from "./components/CostContextBar";
 import DailyCostChart from "./components/DailyCostChart";
 import OrgTopServicesPanel from "./components/OrgTopServicesPanel";
+import SpikesPanel from "./components/SpikesPanel";
 import SuggestionsPanel from "./components/SuggestionsPanel";
 import SummaryDashboard from "./components/SummaryDashboard";
 import VgpuBackground from "./components/VgpuBackground";
 import { buildBillingHighlights } from "./utils/highlights";
 import { formatCurrency, formatSignedCurrency } from "./utils/format";
-import type { DashboardResponse, DailyCost, ReportResponse, SuggestionsResponse, TrendsResponse } from "./types";
+import type { BudgetStatus, DashboardResponse, DailyCost, ForecastResult, ReportResponse, SuggestionsResponse, TrendsResponse } from "./types";
 
 type Tab = "ask" | "explore";
 
@@ -42,6 +43,8 @@ export default function App() {
   const [data, setData] = useState<DashboardResponse | null>(null);
   const [trends, setTrends] = useState<TrendsResponse | null>(null);
   const [suggestions, setSuggestions] = useState<SuggestionsResponse | null>(null);
+  const [forecast, setForecast] = useState<ForecastResult | null>(null);
+  const [budgets, setBudgets] = useState<BudgetStatus[] | null>(null);
   const [enrichingSuggestions, setEnrichingSuggestions] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [authError, setAuthError] = useState(false);
@@ -85,6 +88,8 @@ export default function App() {
       const report = await fetchReport(period);
       setData(report.dashboard);
       setTrends(report.trends);
+      setForecast(report.forecast ?? null);
+      setBudgets(report.budgets ?? null);
       setLoading(false);
       await applySuggestions(report, false);
     } catch (e) {
@@ -105,6 +110,8 @@ export default function App() {
       const report = await fetchReportFresh(period);
       setData(report.dashboard);
       setTrends(report.trends);
+      setForecast(report.forecast ?? null);
+      setBudgets(report.budgets ?? null);
       setLoading(false);
       await applySuggestions(report, true);
     } catch (e) {
@@ -136,8 +143,8 @@ export default function App() {
     `${new Date(data.start + "T00:00:00").toLocaleDateString()} – ${new Date(data.end + "T00:00:00").toLocaleDateString()}`;
 
   const highlights = useMemo(
-    () => buildBillingHighlights(data, trends, suggestions, period),
-    [data, trends, suggestions, period]
+    () => buildBillingHighlights(data, trends, suggestions, period, forecast, budgets),
+    [data, trends, suggestions, period, forecast, budgets]
   );
 
   const topAccountsBySpend = useMemo(() => {
@@ -216,6 +223,8 @@ export default function App() {
         onRefresh={refresh}
         loading={loading}
         demoMode={demoMode}
+        forecast={forecast}
+        budgets={budgets}
       />
 
       <nav className="tab-nav" role="tablist">
@@ -291,7 +300,17 @@ export default function App() {
               trends={trends}
               trendsLoading={loading && !trends}
               period={period}
+              commitments={data.commitments ?? null}
+              tax={data.tax ?? null}
             />
+
+            {trends?.spikes && trends.spikes.length > 0 && (
+              <SpikesPanel
+                spikes={trends.spikes}
+                accounts={data.accounts}
+                onAskAbout={handleAskAbout}
+              />
+            )}
 
             {(accountStrip.mode === "movers" ||
               (accountStrip.mode === "spend" && accountStrip.accounts.length > 0)) && (
@@ -395,6 +414,9 @@ export default function App() {
                   <DailyCostChart
                     data={consolidatedOrgDaily}
                     title="Daily organization spend (all services, usage)"
+                    seriesName="Org spend"
+                    spikes={trends?.spikes}
+                    incompleteDays={data.incomplete_days ?? 0}
                   />
                 </section>
 
@@ -402,6 +424,7 @@ export default function App() {
                   <DailyCostChart
                     data={consolidatedEC2Daily}
                     title="Daily EC2-Other spend (all accounts)"
+                    incompleteDays={data.incomplete_days ?? 0}
                   />
                 </section>
 

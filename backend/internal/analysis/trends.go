@@ -57,6 +57,8 @@ type TrendsResponse struct {
 	AccountTrends       []AccountTrend `json:"account_trends"`
 	TopAccountIncreases []AccountTrend `json:"top_account_increases"`
 	TopAccountDecreases []AccountTrend `json:"top_account_decreases"`
+	// Spikes are daily anomalies in org spend within the current period.
+	Spikes []Spike `json:"spikes,omitempty"`
 	HistoryNote         string         `json:"history_note,omitempty"`
 	SnapshotCount       int            `json:"snapshot_count,omitempty"`
 	RefreshAllowed      bool           `json:"refresh_allowed,omitempty"`

@@ -4,6 +4,11 @@ listen_addr: ":8080"
 cors_origin: "http://localhost:5173"
 cost_lookback_days: 30
 
+# Keep Tax records in cost totals. Default false: AWS bills tax as a lump on the
+# 1st of each month, which fakes a day-1 spike and distorts daily series and
+# month-over-month deltas. Set true only if you want tax in the numbers.
+# include_tax: false
+
 # Org payer Cost Explorer profile (queries all linked accounts via LINKED_ACCOUNT filter).
 billing_profile: Master.AdministratorAccess
 

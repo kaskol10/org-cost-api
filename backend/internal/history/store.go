@@ -17,6 +17,19 @@ type ServiceAmount struct {
 	Amount  float64 `json:"amount"`
 }
 
+// DailyPoint is org-wide spend for one calendar day.
+type DailyPoint struct {
+	Date   string  `json:"date"`
+	Amount float64 `json:"amount"`
+}
+
+// AccountDaily is one account's daily spend within a snapshot period.
+type AccountDaily struct {
+	AccountID   string       `json:"account_id"`
+	AccountName string       `json:"account_name"`
+	Daily       []DailyPoint `json:"daily"`
+}
+
 // AccountAmount is per-account spend in a snapshot.
 type AccountAmount struct {
 	AccountID   string          `json:"account_id"`
@@ -33,6 +46,10 @@ type Snapshot struct {
 	OrgTotal    float64         `json:"org_total"`
 	Services    []ServiceAmount `json:"services"`
 	Accounts    []AccountAmount `json:"accounts"`
+	// OrgDaily is the merged org-wide daily spend for the period (usage, all services).
+	OrgDaily []DailyPoint `json:"org_daily,omitempty"`
+	// AccountDaily holds per-account daily spend for anomaly attribution.
+	AccountDaily []AccountDaily `json:"account_daily,omitempty"`
 }
 
 // PriorCache stores a prior-period CE result to avoid repeat API calls.

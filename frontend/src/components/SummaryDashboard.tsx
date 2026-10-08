@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   AccountDashboard,
+  CommitmentCoverage,
   ConsolidatedTotals,
   DailyCost,
   OrgServiceDriver,
   ServiceTagDeltaResponse,
   ServiceTagTotalsResponse,
   ServiceTrend,
+  TaxBreakdown,
   TrendsResponse,
 } from "../types";
 import type { PeriodPreset } from "../api";
@@ -31,6 +33,8 @@ interface Props {
   trends?: TrendsResponse | null;
   trendsLoading?: boolean;
   period: PeriodPreset;
+  commitments?: CommitmentCoverage | null;
+  tax?: TaxBreakdown | null;
 }
 
 const GP3_USD_PER_GIB = 0.08;
@@ -42,6 +46,29 @@ function formatPeriodRange(p: { start: string; end: string }) {
       day: "numeric",
     });
   return `${fmt(p.start)} – ${fmt(p.end)}`;
+}
+
+function CoverageBar({
+  value,
+  warnBelow,
+}: {
+  value: number;
+  warnBelow?: number;
+}) {
+  const pct = Math.max(0, Math.min(100, value));
+  const warn = warnBelow != null && value < warnBelow;
+  return (
+    <div
+      className="summary-coverage-bar"
+      role="img"
+      aria-label={`${value}%`}
+    >
+      <div
+        className={`summary-coverage-fill${warn ? " warn" : ""}`}
+        style={{ width: `${pct}%` }}
+      />
+    </div>
+  );
 }
 
 function MiniSparkline({ data }: { data: DailyCost[] }) {
@@ -135,6 +162,8 @@ export default function SummaryDashboard({
   trends,
   trendsLoading,
   period,
+  commitments,
+  tax,
 }: Props) {
   const top = topServices.slice(0, 5);
   const unattachedGiB = totals.volume_available_gib ?? 0;
@@ -651,6 +680,134 @@ export default function SummaryDashboard({
             </ul>
           )}
         </div>
+
+        {commitments && commitments.has_commitments && (
+          <div className="summary-card">
+            <h2 className="summary-card-title">Commitments</h2>
+            <dl className="summary-stats">
+              <div className="summary-stat">
+                <dt>Savings-plan coverage</dt>
+                <dd>
+                  {commitments.sp_coverage_pct != null ? (
+                    <>
+                      <strong>{formatPercent(commitments.sp_coverage_pct)}</strong>
+                      <CoverageBar
+                        value={commitments.sp_coverage_pct}
+                      />
+                    </>
+                  ) : (
+                    <span className="summary-ok">—</span>
+                  )}
+                </dd>
+              </div>
+              <div className="summary-stat">
+                <dt>SP utilization</dt>
+                <dd>
+                  {commitments.sp_utilization_pct != null ? (
+                    <>
+                      <strong
+                        className={
+                          commitments.sp_utilization_pct < 80
+                            ? "summary-warn"
+                            : undefined
+                        }
+                      >
+                        {formatPercent(commitments.sp_utilization_pct)}
+                      </strong>
+                      <CoverageBar value={commitments.sp_utilization_pct} warnBelow={80} />
+                    </>
+                  ) : (
+                    <span className="summary-ok">—</span>
+                  )}
+                </dd>
+              </div>
+              <div className="summary-stat">
+                <dt>RI coverage</dt>
+                <dd>
+                  {commitments.ri_coverage_pct != null ? (
+                    <>
+                      <strong>{formatPercent(commitments.ri_coverage_pct)}</strong>
+                      <CoverageBar value={commitments.ri_coverage_pct} />
+                    </>
+                  ) : (
+                    <span className="summary-ok">—</span>
+                  )}
+                </dd>
+              </div>
+              {commitments.uncommitted_usd != null && (
+                <div className="summary-stat">
+                  <dt>Uncommitted (on-demand)</dt>
+                  <dd>
+                    <strong>{formatCurrency(commitments.uncommitted_usd)}</strong>
+                    <span className="summary-stat-sub">SP-eligible, not covered</span>
+                  </dd>
+                </div>
+              )}
+            </dl>
+          </div>
+        )}
+
+        {tax && tax.total_usd > 0 && (
+          <div className="summary-card">
+            <h2 className="summary-card-title">Tax</h2>
+            <dl className="summary-stats">
+              <div className="summary-stat">
+                <dt>Tax (excluded)</dt>
+                <dd>
+                  <strong>{formatCurrency(tax.total_usd)}</strong>
+                  <span className="summary-stat-sub">
+                    not in usage totals
+                  </span>
+                </dd>
+              </div>
+              {tax.incl_tax_total_usd != null && tax.incl_tax_total_usd > 0 && (
+                <div className="summary-stat">
+                  <dt>Incl. tax total</dt>
+                  <dd>
+                    <strong>{formatCurrency(tax.incl_tax_total_usd)}</strong>
+                    <span className="summary-stat-sub">
+                      {formatPercent((tax.total_usd / tax.incl_tax_total_usd) * 100)} of spend
+                    </span>
+                  </dd>
+                </div>
+              )}
+            </dl>
+            {tax.by_service && tax.by_service.length > 1 && (
+              <ul className="summary-trend-list">
+                {tax.by_service.slice(0, 5).map((s) => (
+                  <li key={s.service} className="summary-trend-item">
+                    <div className="summary-bar-row">
+                      <span className="summary-bar-name">
+                        {formatServiceName(s.service)}
+                      </span>
+                      <span className="summary-bar-value">
+                        {formatCurrency(s.amount)}
+                      </span>
+                    </div>
+                  </li>
+                ))}
+                {tax.by_service.length > 5 && (
+                  <li className="summary-empty">
+                    +{tax.by_service.length - 5} more services
+                  </li>
+                )}
+              </ul>
+            )}
+            <p className="summary-tax-note">
+              AWS bills tax as a lump on the 1st of the month. It's excluded
+              from usage totals, daily trends, and comparisons so the 1st
+              doesn't look like a spike.
+              {tax.daily && tax.daily.length > 0 && (
+                <>
+                  {" "}
+                  Posted on {tax.posted_days ?? tax.daily.length} day
+                  {tax.posted_days === 1 || tax.daily.length === 1 ? "" : "s"} in
+                  this range.
+                </>
+              )}
+            </p>
+          </div>
+        )}
       </div>
     </section>
   );

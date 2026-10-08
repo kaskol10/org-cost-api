@@ -51,6 +51,15 @@ func (c *Config) CostDateRange() (start, end string) {
 	return c.CostDateRangeFor(PeriodLookback)
 }
 
+// CostLagDays is how many of the most recent days Cost Explorer understates
+// (CE usage data lags ~24-48h). Defaults to 2 when unset or out of range.
+func (c *Config) CostLagDays() int {
+	if c.CostLag < 0 || c.CostLag > 7 {
+		return 2
+	}
+	return c.CostLag
+}
+
 // PeriodDayCount returns the whole-day span between start and end (end - start).
 func PeriodDayCount(start, end string) int {
 	s, err1 := time.Parse("2006-01-02", start)

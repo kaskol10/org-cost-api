@@ -1,5 +1,5 @@
 import type { PeriodPreset } from "../api";
-import type { TrendsResponse } from "../types";
+import type { BudgetStatus, ForecastResult, TrendsResponse } from "../types";
 import {
   formatCurrency,
   formatSpendChangePill,
@@ -18,6 +18,8 @@ interface Props {
   onRefresh: () => void;
   loading?: boolean;
   demoMode?: boolean;
+  forecast?: ForecastResult | null;
+  budgets?: BudgetStatus[] | null;
 }
 
 export default function CostContextBar({
@@ -31,6 +33,8 @@ export default function CostContextBar({
   onRefresh,
   loading,
   demoMode,
+  forecast,
+  budgets,
 }: Props) {
   const orgChange = trends?.org_total;
   const hasPrior = orgChange && orgChange.prior_usd > 0;
@@ -41,6 +45,12 @@ export default function CostContextBar({
     : "flat";
   const changePillClass =
     spendDir === "up" ? "up" : spendDir === "down" ? "down" : "flat";
+
+  // Projected EOM vs the first (org) budget.
+  const primaryBudget = (budgets ?? []).find(
+    (b) => !b.account
+  ) ?? budgets?.[0];
+  const showBudget = !!forecast && !!primaryBudget;
 
   return (
     <section className="cost-context-bar" aria-label="Organization cost context">
@@ -84,6 +94,44 @@ export default function CostContextBar({
             <p className="cost-context-updating" role="status">
               Updating for {activePeriodLabel.toLowerCase()}…
             </p>
+          )}
+          {showBudget && forecast && primaryBudget && (
+            <div
+              className={`cost-context-budget ${
+                primaryBudget.status === "over"
+                  ? "budget-over"
+                  : primaryBudget.status === "warning"
+                    ? "budget-warning"
+                    : "budget-ok"
+              }`}
+            >
+              <div className="cost-context-budget-labels">
+                <span>
+                  Projected EOM{" "}
+                  <strong>{formatCurrency(forecast.projected_usd)}</strong>
+                </span>
+                <span>
+                  {primaryBudget.name} budget{" "}
+                  <strong>{formatCurrency(primaryBudget.monthly_usd)}</strong>{" "}
+                  · {Math.round(primaryBudget.percent_of_budget)}%
+                </span>
+              </div>
+              <div className="cost-context-budget-track" role="img" aria-label={`${Math.round(primaryBudget.percent_of_budget)}% of budget projected`}>
+                <div
+                  className="cost-context-budget-fill"
+                  style={{
+                    width: `${Math.min(100, primaryBudget.percent_of_budget)}%`,
+                  }}
+                />
+              </div>
+              {primaryBudget.status !== "ok" && (
+                <p className="cost-context-budget-note">
+                  {primaryBudget.status === "over"
+                    ? `Projected ${formatCurrency(primaryBudget.over_by_usd ?? 0)} over budget.`
+                    : "On track to breach budget this month."}
+                </p>
+              )}
+            </div>
           )}
         </div>
       </div>

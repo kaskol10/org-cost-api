@@ -1,6 +1,8 @@
 import type { PeriodPreset } from "../api";
 import type {
+  BudgetStatus,
   DashboardResponse,
+  ForecastResult,
   SuggestionsResponse,
   TrendsResponse,
 } from "../types";
@@ -15,7 +17,7 @@ import {
 } from "./format";
 import { periodLabel, priorCompareLabel } from "./periodLabels";
 
-export type HighlightKind = "spend" | "trend" | "waste" | "savings" | "concentration";
+export type HighlightKind = "spend" | "trend" | "waste" | "savings" | "concentration" | "budget";
 
 export interface BillingHighlight {
   id: string;
@@ -30,7 +32,9 @@ export function buildBillingHighlights(
   dashboard: DashboardResponse | null,
   trends: TrendsResponse | null,
   suggestions: SuggestionsResponse | null,
-  period: PeriodPreset = "30d"
+  period: PeriodPreset = "30d",
+  forecast: ForecastResult | null = null,
+  budgets: BudgetStatus[] | null = null
 ): BillingHighlight[] {
   if (!dashboard) return [];
 
@@ -39,6 +43,25 @@ export function buildBillingHighlights(
   const top = dashboard.top_services?.[0];
   const compareLabel = priorCompareLabel(period);
   const activePeriodLabel = periodLabel(period, trends?.current_period?.days);
+
+  // Projected EOM vs budget — over-budget highlight.
+  const primaryBudget = (budgets ?? []).find((b) => !b.account) ?? budgets?.[0];
+  if (forecast && primaryBudget && primaryBudget.status !== "ok") {
+    const pct = Math.round(primaryBudget.percent_of_budget);
+    items.push({
+      id: `budget-${primaryBudget.name}`,
+      kind: "budget",
+      title: primaryBudget.status === "over" ? "Over budget" : "Near budget",
+      value: `${pct}% of ${primaryBudget.name}`,
+      detail: `Projected ${formatCurrency(forecast.projected_usd)} EOM vs ${formatCurrency(primaryBudget.monthly_usd)} budget${
+        primaryBudget.status === "over" && primaryBudget.over_by_usd
+          ? ` · ${formatCurrency(primaryBudget.over_by_usd)} over`
+          : ""
+      }`,
+      askQuestion:
+        "We're over budget for the month. What's driving the projected overrun and what should we cut or defer?",
+    });
+  }
 
   items.push({
     id: "org-spend",

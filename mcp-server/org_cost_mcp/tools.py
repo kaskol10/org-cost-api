@@ -50,6 +50,40 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
+            "name": "get_cost_anomalies",
+            "description": (
+                "Daily spend anomalies (spikes/drops) vs trailing 14-day baseline, "
+                "with account attribution. Use for 'what's off today / this week?'"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {"refresh": {"type": "boolean"}},
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_forecast",
+            "description": (
+                "Projected end-of-month spend vs configured budgets. "
+                "Use for 'what will this month cost' / 'are we over budget?'. "
+                "Optional budget_name filters to one budget."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "budget_name": {
+                        "type": "string",
+                        "description": "Optional budget name to filter (partial match).",
+                    }
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "get_cost_suggestions",
             "description": "Ranked cost optimization suggestions from dashboard cache and trends.",
             "parameters": {
@@ -139,6 +173,8 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
 _TOOL_HANDLERS: dict[str, Callable[..., str]] = {
     "get_org_summary": server.get_org_summary,
     "get_cost_trends": server.get_cost_trends,
+    "get_cost_anomalies": server.get_cost_anomalies,
+    "get_forecast": server.get_forecast,
     "get_cost_suggestions": server.get_cost_suggestions,
     "get_waste_signals": server.get_waste_signals,
     "get_account_costs": server.get_account_costs,

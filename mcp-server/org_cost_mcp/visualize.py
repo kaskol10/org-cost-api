@@ -197,6 +197,42 @@ def build_markdown_report(
         lines.append(_mermaid_pie(top_services, org_cur))
         lines.append("")
 
+    spikes = trends.get("spikes") or []
+    if spikes:
+        lines.extend(["## Daily spikes", ""])
+        for s in spikes[:6]:
+            direction = s.get("direction") or "up"
+            arrow = "▲" if direction == "up" else "▼"
+            pct = float(s.get("deviation_pct") or 0)
+            accounts = s.get("account_ids") or []
+            accounts_s = f" · accounts: {', '.join(accounts)}" if accounts else ""
+            incomplete = " · ⚠ day still settling (CE lag)" if s.get("incomplete") else ""
+            lines.append(
+                f"- {arrow} **{s.get('date')}** {_usd(s.get('amount_usd'))} "
+                f"({_pct(pct)} vs ~{_usd(s.get('baseline_usd'))} baseline){accounts_s}{incomplete}"
+            )
+        lines.append("")
+        lines.append(
+            "_Daily spend vs trailing 14-day baseline (≥50% and ≥$50). "
+            "Use get_service_tag_delta / get_service_detail to drill in._"
+        )
+        lines.append("")
+
+    commitments = dashboard.get("commitments")
+    if commitments and commitments.get("has_commitments"):
+        lines.extend(["## Commitments (savings plans / RI)", ""])
+        if commitments.get("sp_coverage_pct") is not None:
+            lines.append(f"- **Savings-plan coverage:** {commitments['sp_coverage_pct']:.0f}% of eligible usage")
+        if commitments.get("sp_utilization_pct") is not None:
+            util = float(commitments["sp_utilization_pct"])
+            flag = " ⚠ low" if util < 80 else ""
+            lines.append(f"- **SP utilization:** {util:.0f}%{flag} of committed spend used")
+        if commitments.get("ri_coverage_pct") is not None:
+            lines.append(f"- **RI coverage:** {commitments['ri_coverage_pct']:.0f}% of instance hours")
+        if commitments.get("uncommitted_usd") is not None:
+            lines.append(f"- **Uncommitted (on-demand):** {_usd(commitments['uncommitted_usd'])} SP-eligible not covered")
+        lines.append("")
+
     if sug_list:
         lines.extend(["## Savings opportunities", ""])
         for s in sug_list[:9]:

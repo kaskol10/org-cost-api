@@ -235,6 +235,27 @@ export interface ConsolidatedTotals {
   account_count: number;
 }
 
+export interface CommitmentCoverage {
+  sp_coverage_pct?: number;
+  sp_utilization_pct?: number;
+  ri_coverage_pct?: number;
+  uncommitted_usd?: number;
+  has_commitments?: boolean;
+}
+
+// Tax isolates Tax records (RECORD_TYPE=Tax) from usage. AWS posts the
+// previous month's tax as a lump on the 1st of the month, which otherwise
+// fakes a day-1 spike and skews period-over-period comparisons.
+export interface TaxBreakdown {
+  total_usd: number;
+  /** Org usage+tax spend (excludes only credits/refunds). */
+  incl_tax_total_usd?: number;
+  by_service?: OrgServiceDriver[];
+  daily?: DailyCost[];
+  posted_days?: number;
+  has_data?: boolean;
+}
+
 export interface DashboardResponse {
   generated_at: string;
   start: string;
@@ -244,6 +265,10 @@ export interface DashboardResponse {
   top_services?: OrgServiceDriver[];
   cur_enabled?: boolean;
   cur_note?: string;
+  incomplete_days?: number;
+  tax_excluded?: boolean;
+  tax?: TaxBreakdown;
+  commitments?: CommitmentCoverage;
 }
 
 export interface PeriodSummary {
@@ -281,6 +306,16 @@ export interface AccountTrend {
   current_share_pct?: number;
 }
 
+export interface Spike {
+  date: string;
+  amount_usd: number;
+  baseline_usd: number;
+  deviation_pct: number;
+  direction: string;
+  account_ids?: string[];
+  incomplete?: boolean;
+}
+
 export interface TrendsResponse {
   generated_at: string;
   period?: "30d" | "mtd" | string;
@@ -295,6 +330,7 @@ export interface TrendsResponse {
   account_trends?: AccountTrend[];
   top_account_increases?: AccountTrend[];
   top_account_decreases?: AccountTrend[];
+  spikes?: Spike[];
   history_note?: string;
   snapshot_count?: number;
   refresh_allowed?: boolean;
@@ -329,12 +365,33 @@ export interface SuggestionsResponse {
   additional_insights?: string[];
 }
 
+export interface ForecastResult {
+  projected_usd: number;
+  mtd_usd: number;
+  days_elapsed: number;
+  days_in_month: number;
+  daily_average: number;
+  method?: string;
+}
+
+export interface BudgetStatus {
+  name: string;
+  monthly_usd: number;
+  account?: string;
+  projected_usd: number;
+  percent_of_budget: number;
+  status: "ok" | "warning" | "over";
+  over_by_usd?: number;
+}
+
 export interface ReportResponse {
   dashboard: DashboardResponse;
   trends: TrendsResponse;
   suggestions: SuggestionsResponse;
   ce_calls_used: number;
   refresh_allowed: boolean;
+  forecast?: ForecastResult;
+  budgets?: BudgetStatus[];
 }
 
 export interface AskResponse {
