@@ -61,6 +61,8 @@ Remote HTTP: `docker compose -f docker-compose.mcp-http.yml up` — see [mcp-set
 | `list_accounts` | Configured account names and IDs |
 | `get_org_summary` | Org totals + top services |
 | `get_cost_trends` | Current vs prior period (history-first) |
+| `get_cost_anomalies` | Daily spikes/drops vs 14-day baseline, account attribution |
+| `get_forecast` | Projected end-of-month spend vs budgets |
 | `get_cost_suggestions` | Ranked cost optimization suggestions |
 | `get_cost_report` | Markdown + Mermaid; writes `~/.org-cost/reports/latest.html` |
 | `get_account_costs` | One account's spend and top services |

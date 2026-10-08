@@ -559,6 +559,93 @@ components:
           type: boolean
         cur_note:
           type: string
+        incomplete_days:
+          type: integer
+          description: How many of the most recent days Cost Explorer data is still lagging (typically 1-2).
+        tax_excluded:
+          type: boolean
+          description: "True when Tax records were excluded from cost queries. Default true: AWS bills tax as a lump on the 1st of each month, which distorts daily series (faked day-1 spike) and period-over-period comparisons."
+        tax:
+          $ref: "#/components/schemas/TaxBreakdown"
+        commitments:
+          $ref: "#/components/schemas/CommitmentCoverage"
+    ServiceCost:
+      type: object
+      description: A single service (or tax "line") and its amount.
+      properties:
+        service:
+          type: string
+        amount:
+          type: number
+        unit:
+          type: string
+        percent:
+          type: number
+    DailyCost:
+      type: object
+      description: A single day's cost.
+      properties:
+        date:
+          type: string
+        amount:
+          type: number
+        unit:
+          type: string
+    TaxBreakdown:
+      type: object
+      description: >-
+        Isolates Tax records (RECORD_TYPE=Tax) from usage. AWS posts the
+        previous month's tax as a single lump on the 1st of the new month,
+        which otherwise fakes a day-1 spike and skews period-over-period
+        comparisons. Shown when tax is excluded from usage totals.
+      properties:
+        total_usd:
+          type: number
+          description: >-
+            Tax for the range, computed as the difference between org spend
+            with tax and org usage-only spend (both exclusion-filter queries),
+            so it stays reliable when RECORD_TYPE=Tax filtering misbehaves.
+        incl_tax_total_usd:
+          type: number
+          description: Org usage+tax spend (excludes only credits/refunds).
+        by_service:
+          type: array
+          description: >-
+            Best-effort per-service tax breakdown (RECORD_TYPE=Tax query).
+            May be empty even when total_usd > 0; tax is often a single
+            "Tax" line.
+          items:
+            $ref: "#/components/schemas/ServiceCost"
+        daily:
+          type: array
+          description: >-
+            Best-effort per-day tax totals; reveals the lump-on-the-1st
+            pattern. May be empty even when total_usd > 0.
+          items:
+            $ref: "#/components/schemas/DailyCost"
+        posted_days:
+          type: integer
+          description: Number of distinct days tax was posted on.
+        has_data:
+          type: boolean
+          description: "True when non-zero tax was found."
+    CommitmentCoverage:
+      type: object
+      properties:
+        sp_coverage_pct:
+          type: number
+          description: "Percent of savings-plan-eligible usage covered by Savings Plans."
+        sp_utilization_pct:
+          type: number
+          description: "Percent of Savings Plan commitment actually consumed."
+        ri_coverage_pct:
+          type: number
+          description: "Percent of EC2 instance hours covered by Reserved Instances."
+        uncommitted_usd:
+          type: number
+          description: SP-eligible on-demand spend not covered by Savings Plans.
+        has_commitments:
+          type: boolean
     ServiceTrend:
       type: object
       properties:
@@ -654,12 +741,42 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AccountTrend"
+        spikes:
+          type: array
+          description: Daily org-spend anomalies vs the trailing 14-day median baseline.
+          items:
+            $ref: "#/components/schemas/Spike"
         history_note:
           type: string
         snapshot_count:
           type: integer
         refresh_allowed:
           type: boolean
+    Spike:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        amount_usd:
+          type: number
+        baseline_usd:
+          type: number
+          description: Trailing 14-day median baseline for the day before it.
+        deviation_pct:
+          type: number
+          description: (amount - baseline) / baseline * 100. Positive = spike up, negative = dip.
+        direction:
+          type: string
+          enum: [up, down]
+        account_ids:
+          type: array
+          description: Top accounts contributing the flagged day's spend.
+          items:
+            type: string
+        incomplete:
+          type: boolean
+          description: True when the day is inside the Cost Explorer lag window.
     Suggestion:
       type: object
       properties:
@@ -716,6 +833,50 @@ components:
           type: integer
         refresh_allowed:
           type: boolean
+        forecast:
+          $ref: "#/components/schemas/Forecast"
+        budgets:
+          type: array
+          items:
+            $ref: "#/components/schemas/BudgetStatus"
+    Forecast:
+      type: object
+      description: Projected end-of-month org spend (daily-average run-rate over the MTD daily series).
+      properties:
+        projected_usd:
+          type: number
+        mtd_usd:
+          type: number
+          description: Spend so far in the current calendar month.
+        days_elapsed:
+          type: integer
+        days_in_month:
+          type: integer
+        daily_average:
+          type: number
+        method:
+          type: string
+    BudgetStatus:
+      type: object
+      properties:
+        name:
+          type: string
+        monthly_usd:
+          type: number
+        account:
+          type: string
+          description: Account name/id this budget is scoped to; empty means org-wide.
+        projected_usd:
+          type: number
+        percent_of_budget:
+          type: number
+          description: projected_usd / monthly_usd * 100.
+        status:
+          type: string
+          enum: [ok, warning, over]
+        over_by_usd:
+          type: number
+          description: Positive overrun when projected spend exceeds budget.
     AccountCostsResponse:
       type: object
       properties:

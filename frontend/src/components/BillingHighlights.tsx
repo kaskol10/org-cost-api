@@ -6,6 +6,7 @@ const KIND_LABEL: Record<HighlightKind, string> = {
   waste: "Waste",
   concentration: "Focus",
   savings: "Savings",
+  budget: "Budget",
 };
 
 interface Props {

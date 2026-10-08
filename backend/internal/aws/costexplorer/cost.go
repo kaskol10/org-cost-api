@@ -21,9 +21,23 @@ var ec2OtherServiceNames = []string{
 	"Amazon Elastic Compute Cloud - Other", // legacy / rare
 }
 
-// excludedRecordTypes mirrors Cost Explorer "exclude Refunds/Credits" charge-type filtering.
-// Filtering RECORD_TYPE=Usage alone often returns $0 via the API (see aws/aws-sdk#40).
-var excludedRecordTypes = []string{"Credit", "Refund"}
+// excludedRecordTypes are the RECORD_TYPE values removed from cost queries so
+// totals reflect usage only (the "exclude Refunds/Credits" console behavior).
+// Filtering RECORD_TYPE=Usage alone often returns $0 via the API (aws/aws-sdk#40),
+// so we exclude by name instead.
+func excludedRecordTypes() []string {
+	excluded := []string{"Credit", "Refund"}
+	if ExcludeTaxRecords {
+		excluded = append(excluded, "Tax")
+	}
+	return excluded
+}
+
+// ExcludeTaxRecords controls whether Tax records are excluded from cost
+// queries. Default true: AWS bills tax as a lump on the 1st of the month,
+// which distorts daily series (faked day-1 spike) and month-over-month deltas.
+// Set to false (config: include_tax: true) to include tax in totals.
+var ExcludeTaxRecords = true
 
 type DailyCost struct {
 	Date   string  `json:"date"`
@@ -137,7 +151,7 @@ func usageOnlyFilter(base types.Expression) types.Expression {
 		Not: &types.Expression{
 			Dimensions: &types.DimensionValues{
 				Key:    types.DimensionRecordType,
-				Values: excludedRecordTypes,
+				Values: excludedRecordTypes(),
 			},
 		},
 	}

@@ -4,7 +4,10 @@ export type SuggestionCategory =
   | "waste"
   | "rightsizing"
   | "trend"
+  | "spike"
   | "concentration"
+  | "commitment"
+  | "budget"
   | "visibility";
 
 export const CATEGORY_META: Record<
@@ -26,10 +29,25 @@ export const CATEGORY_META: Record<
     hint: "Spend increased vs prior period",
     cssClass: "suggestion-cat-trend",
   },
+  spike: {
+    label: "Spike",
+    hint: "Single-day spend anomaly vs baseline",
+    cssClass: "suggestion-cat-spike",
+  },
   concentration: {
     label: "Concentration",
     hint: "One service dominates org spend",
     cssClass: "suggestion-cat-concentration",
+  },
+  commitment: {
+    label: "Commitment",
+    hint: "Savings plan / RI coverage gaps",
+    cssClass: "suggestion-cat-commitment",
+  },
+  budget: {
+    label: "Budget",
+    hint: "Projected spend vs budget",
+    cssClass: "suggestion-cat-budget",
   },
   visibility: {
     label: "Visibility",
@@ -42,7 +60,10 @@ const CATEGORY_ORDER: SuggestionCategory[] = [
   "waste",
   "rightsizing",
   "trend",
+  "spike",
   "concentration",
+  "commitment",
+  "budget",
   "visibility",
 ];
 

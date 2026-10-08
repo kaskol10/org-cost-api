@@ -212,6 +212,10 @@ def get_org_summary(refresh: bool = False) -> str:
     """
     data = fetch_dashboard(refresh=refresh)
     totals = data.get("totals") or {}
+    tax = data.get("tax") or {}
+    tax_total = tax.get("total_usd")
+    if tax_total:
+        totals["tax_total_usd"] = tax_total
     out = {
         "period": {"start": data.get("start"), "end": data.get("end")},
         "generated_at": data.get("generated_at"),
@@ -225,10 +229,26 @@ def get_org_summary(refresh: bool = False) -> str:
         },
         "top_services": data.get("top_services") or [],
         "cur_enabled": data.get("cur_enabled", False),
+        "tax_excluded": data.get("tax_excluded", True),
+        "tax": {
+            "total_usd": tax_total,
+            "incl_tax_total_usd": tax.get("incl_tax_total_usd"),
+            "posted_days": tax.get("posted_days"),
+        } if tax_total else None,
         "note": (
             "org_total is all AWS services (usage). "
             "ec2_other is EC2-Other only. "
-            "Investigate savings via get_waste_signals and per-account breakdowns."
+            "Investigate savings via get_waste_signals and per-account breakdowns. "
+            + (
+                (
+                    "Tax is excluded from org_total: AWS bills it as a lump on the 1st of the month, "
+                    "which distorts daily/period comparisons. This range posted $%s tax; "
+                    "incl_tax_total_usd is org spend with tax included. "
+                    "Set include_tax: true in config to fold tax into totals."
+                ) % (tax_total if tax_total is not None else 0)
+                if data.get("tax_excluded", True)
+                else "Tax records are included in totals (include_tax: true)."
+            )
         ),
     }
     return json.dumps(out, indent=2)
@@ -298,6 +318,13 @@ def get_waste_signals(refresh: bool = False) -> str:
         key=lambda x: x.get("estimated_monthly_usd", 0), reverse=True
     )
     org_avail_gib = float(totals.get("volume_available_gib") or 0)
+    guidance = [
+        "storage_gib / unattached_ebs_gib = provisioned size of available (unattached) volumes only.",
+        "estimated_monthly_usd uses ~$0.08/GiB-month (gp3 ballpark); actual varies by volume type/region.",
+        "Unattached EBS (available) are strong delete/attach candidates — verify in console.",
+        "Use get_account_costs + get_service_detail for spend drivers, not just inventory.",
+    ]
+    commitments = data.get("commitments")
     out = {
         "period": {"start": data.get("start"), "end": data.get("end")},
         "organization": {
@@ -310,14 +337,109 @@ def get_waste_signals(refresh: bool = False) -> str:
         },
         "account_distribution": account_distribution,
         "accounts_with_signals": by_account,
-        "guidance": [
-            "storage_gib / unattached_ebs_gib = provisioned size of available (unattached) volumes only.",
-            "estimated_monthly_usd uses ~$0.08/GiB-month (gp3 ballpark); actual varies by volume type/region.",
-            "Unattached EBS (available) are strong delete/attach candidates — verify in console.",
-            "Use get_account_costs + get_service_detail for spend drivers, not just inventory.",
-        ],
+        "guidance": guidance,
     }
+    if commitments and commitments.get("has_commitments"):
+        out["commitments"] = {
+            "sp_coverage_pct": commitments.get("sp_coverage_pct"),
+            "sp_utilization_pct": commitments.get("sp_utilization_pct"),
+            "ri_coverage_pct": commitments.get("ri_coverage_pct"),
+            "uncommitted_usd": commitments.get("uncommitted_usd"),
+            "note": "sp_utilization_pct below 80 means committed spend isn't being used.",
+        }
+        out["guidance"].append(
+            "commitments shows savings-plan/RI coverage — low sp_utilization_pct is wasted committed spend."
+        )
     return json.dumps(out, indent=2)
+
+
+@mcp.tool()
+def get_cost_anomalies(refresh: bool = False) -> str:
+    """
+    Daily spend anomalies for the org: days where spend deviated sharply from the
+    trailing 14-day baseline (>=50% and >=$50), with account attribution.
+    Use this for "what's off today / this week?" — complements period-over-period
+    trends (get_cost_trends) with daily granularity. Cached by default.
+    """
+    report = fetch_report(refresh=refresh)
+    trends = report.get("trends") or {}
+    dashboard = report.get("dashboard") or {}
+
+    name_by_id: dict[str, str] = {}
+    for acct in dashboard.get("accounts") or []:
+        name_by_id[acct.get("account_id", "")] = acct.get("account_name", acct.get("account_id", ""))
+
+    spikes = trends.get("spikes") or []
+    enriched = []
+    for s in spikes:
+        ids = s.get("account_ids") or []
+        enriched.append(
+            {
+                "date": s.get("date"),
+                "direction": s.get("direction"),
+                "amount_usd": s.get("amount_usd"),
+                "baseline_usd": s.get("baseline_usd"),
+                "deviation_pct": round(float(s.get("deviation_pct") or 0), 1),
+                "incomplete": s.get("incomplete", False),
+                "accounts": [name_by_id.get(i, i) for i in ids],
+            }
+        )
+
+    return json.dumps(
+        {
+            "period": {
+                "start": (trends.get("current_period") or {}).get("start"),
+                "end": (trends.get("current_period") or {}).get("end"),
+            },
+            "method": "daily spend vs trailing 14-day median baseline (>=50% and >=$50)",
+            "spike_count": len(enriched),
+            "spikes": enriched,
+            "guidance": [
+                "direction=up means a spend spike; direction=down a drop.",
+                "incomplete=true means the day is inside the Cost Explorer lag window.",
+                "Drill into a spike day with get_service_tag_delta or get_service_detail.",
+            ],
+        },
+        indent=2,
+    )
+
+
+@mcp.tool()
+def get_forecast(budget_name: str = "") -> str:
+    """
+    Projected end-of-month spend (daily-average run-rate over the MTD daily
+    series) compared to configured budgets. Pass budget_name to filter to one
+    budget. No extra Cost Explorer calls — uses the daily series already in the
+    report. Use for "what will this month cost / are we over budget?".
+    """
+    report = fetch_report(refresh=False)
+    forecast = report.get("forecast") or {}
+    budgets = report.get("budgets") or []
+
+    if budget_name.strip():
+        key = budget_name.strip().lower()
+        budgets = [b for b in budgets if key in (b.get("name") or "").lower()]
+
+    return json.dumps(
+        {
+            "month": (report.get("dashboard") or {}).get("start", "")[:7],
+            "forecast": {
+                "projected_usd": forecast.get("projected_usd"),
+                "mtd_usd": forecast.get("mtd_usd"),
+                "days_elapsed": forecast.get("days_elapsed"),
+                "days_in_month": forecast.get("days_in_month"),
+                "daily_average": forecast.get("daily_average"),
+                "method": forecast.get("method"),
+            },
+            "budgets": budgets,
+            "status_help": {
+                "ok": "projected at or below 90% of budget",
+                "warning": "projected above 90% of budget",
+                "over": "projected above 100% of budget",
+            },
+        },
+        indent=2,
+    )
 
 
 @mcp.tool()

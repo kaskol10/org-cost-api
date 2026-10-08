@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/kaskol10/org-cost-api/backend/internal/analysis"
@@ -72,7 +73,9 @@ func (a *Aggregator) Report(ctx context.Context, force bool, period, view string
 	}
 	trends.RefreshAllowed = refreshAllowed
 
-	suggestions := analysis.BuildSuggestions(viewDash, trends)
+	forecast, budgets := buildForecastAndBudgets(a.cfg, viewDash)
+
+	suggestions := analysis.BuildSuggestions(viewDash, trends, budgets)
 	ceTotal := ceCurrent + trends.CECallsUsed
 	suggestions.CECallsUsed = ceTotal
 	trends.CECallsUsed = ceTotal
@@ -88,7 +91,56 @@ func (a *Aggregator) Report(ctx context.Context, force bool, period, view string
 		Suggestions:    suggestions,
 		CECallsUsed:    ceTotal,
 		RefreshAllowed: refreshAllowed,
+		Forecast:       forecast,
+		Budgets:        budgets,
 	}, nil
+}
+
+// buildForecastAndBudgets projects month-end org spend and evaluates each
+// configured budget. Account-scoped budgets project from that account's
+// daily series; org budgets from the merged org series.
+func buildForecastAndBudgets(cfg *appconfig.Config, dashView analysis.DashboardView) (*analysis.ForecastResult, []*analysis.BudgetStatus) {
+	forecast, err := analysis.ProjectEOM(dashView.OrgDaily)
+	if err != nil || forecast == nil {
+		return nil, nil
+	}
+
+	resolveAccount := func(idOrName string) string {
+		idOrName = strings.TrimSpace(idOrName)
+		if idOrName == "" {
+			return ""
+		}
+		for _, a := range dashView.Accounts {
+			if a.AccountID == idOrName || a.AccountName == idOrName {
+				return a.AccountID
+			}
+		}
+		return idOrName
+	}
+
+	var budgets []*analysis.BudgetStatus
+	for _, b := range cfg.Budgets {
+		var projected float64
+		if b.Account != "" {
+			acctID := resolveAccount(b.Account)
+			var acctDaily []analysis.DailyPoint
+			for _, ad := range dashView.AccountDaily {
+				if ad.AccountID == acctID {
+					acctDaily = ad.Daily
+					break
+				}
+			}
+			if af, err := analysis.ProjectEOMAccount(acctDaily); err == nil && af != nil {
+				projected = af.ProjectedUSD
+			}
+		} else {
+			projected = forecast.ProjectedUSD
+		}
+		if bs := analysis.BudgetStatusFor(b.Name, b.MonthlyUSD, b.Account, projected); bs != nil {
+			budgets = append(budgets, bs)
+		}
+	}
+	return forecast, budgets
 }
 
 func (a *Aggregator) liteCacheKey(mode appconfig.PeriodMode) string {

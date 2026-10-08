@@ -30,9 +30,75 @@ type SuggestionsResponse struct {
 }
 
 // BuildSuggestions combines trends, dashboard waste signals, and spend patterns.
-func BuildSuggestions(dash DashboardView, trends *TrendsResponse) *SuggestionsResponse {
+func BuildSuggestions(dash DashboardView, trends *TrendsResponse, budgets []*BudgetStatus) *SuggestionsResponse {
 	var items []Suggestion
 	priority := 1
+
+	// Over-budget / near-budget projections.
+	for _, b := range budgets {
+		if b == nil || b.Status == "ok" {
+			continue
+		}
+		scope := b.Name
+		if b.Account != "" {
+			scope = fmt.Sprintf("%s (%s)", b.Name, b.Account)
+		}
+		var title, detail, id string
+		if b.Status == "over" {
+			id = fmt.Sprintf("over-budget-%s", slug(b.Name))
+			title = fmt.Sprintf("%s projected to exceed budget by %s", scope, fmtMoney(b.OverByUSD))
+			detail = fmt.Sprintf(
+				"Projected month-end spend %s vs budget %s (%.0f%%).",
+				fmtMoney(b.ProjectedUSD), fmtMoney(b.MonthlyUSD), b.PercentOfBudget,
+			)
+		} else {
+			id = fmt.Sprintf("budget-warning-%s", slug(b.Name))
+			title = fmt.Sprintf("%s at %.0f%% of budget (warning)", scope, b.PercentOfBudget)
+			detail = fmt.Sprintf(
+				"Projected month-end spend %s vs budget %s. On track to breach budget.",
+				fmtMoney(b.ProjectedUSD), fmtMoney(b.MonthlyUSD),
+			)
+		}
+		items = append(items, Suggestion{
+			ID:       id,
+			Priority: priority,
+			Category: "budget",
+			Title:    title,
+			Detail:   detail,
+			Account:  b.Account,
+			Actions: []string{
+				"Review the top cost drivers for the projected month (get_cost_report / get_cost_trends).",
+				"Consider pausing non-essential workloads or raising the budget if the overrun is expected.",
+			},
+		})
+		priority++
+	}
+
+	// Low savings-plan utilization — committed spend that isn't being used.
+	if c := dash.Commitments; c != nil && c.SPUtilizationPct != nil && *c.SPUtilizationPct < 80 {
+		util := *c.SPUtilizationPct
+		title := fmt.Sprintf("Savings plans only %.0f%% utilized", util)
+		detail := "You're paying for committed capacity that isn't being consumed. " +
+			"Rightsize the plan or shift eligible workloads onto it."
+		if c.UncommittedUSD != nil {
+			detail = fmt.Sprintf(
+				"%.0f%% of savings-plan commitment is used; ~%s of eligible spend is still on-demand.",
+				util, fmtMoney(*c.UncommittedUSD),
+			)
+		}
+		items = append(items, Suggestion{
+			ID:       "low-commitment-coverage",
+			Priority: priority,
+			Category: "commitment",
+			Title:    title,
+			Detail:   detail,
+			Actions: []string{
+				"Open the Cost Explorer savings-plan utilization report in the AWS console.",
+				"Check commitment vs. eligible instance families/regions; downsize under-used plans.",
+			},
+		})
+		priority++
+	}
 
 	// Unattached EBS — strong dollar estimate from provisioned GiB.
 	if dash.Totals.VolumeAvailable > 0 {
@@ -124,6 +190,34 @@ func BuildSuggestions(dash DashboardView, trends *TrendsResponse) *SuggestionsRe
 				},
 			})
 		}
+
+		// Daily spikes — single-day anomalies vs the trailing baseline.
+		for _, s := range trends.Spikes {
+			if s.Direction != "up" {
+				continue
+			}
+			acct := accountLabel(dash, s.AccountIDs)
+			title := fmt.Sprintf("Spend spike on %s (%+.0f%%)", SpikeDateLabel(s.Date), s.DeviationPct)
+			if acct != "" {
+				title = fmt.Sprintf("Spend spike on %s (%+.0f%%) — %s", SpikeDateLabel(s.Date), s.DeviationPct, acct)
+			}
+			items = append(items, Suggestion{
+				ID:       fmt.Sprintf("daily-spike-%s", s.Date),
+				Priority: priority,
+				Category: "spike",
+				Title:    title,
+				Detail:   SpikeSummaryLine(s),
+				Account:  acct,
+				Actions: []string{
+					fmt.Sprintf("Run get_service_tag_delta or get_service_detail for %s to see what drove it.", SpikeDateLabel(s.Date)),
+					"Check for new clusters, instance-size changes, or data growth that day.",
+				},
+			})
+			priority++
+			if priority > 6 {
+				break
+			}
+		}
 	}
 
 	// Spend concentration — top service dominates.
@@ -204,6 +298,32 @@ func estimateUnattachedEBSMonthly(dash DashboardView) float64 {
 		gib += acct.Volumes.AvailableGiB
 	}
 	return math.Round(gib*0.08*100) / 100
+}
+
+// accountLabel joins the account names for the given IDs (max 2).
+func accountLabel(dash DashboardView, ids []string) string {
+	if len(ids) == 0 {
+		return ""
+	}
+	names := make(map[string]string, len(dash.Accounts))
+	for _, a := range dash.Accounts {
+		names[a.AccountID] = a.AccountName
+	}
+	var out []string
+	for _, id := range ids {
+		if len(out) >= 2 {
+			break
+		}
+		if name, ok := names[id]; ok {
+			out = append(out, name)
+		} else {
+			out = append(out, id)
+		}
+	}
+	if len(out) == 1 {
+		return out[0]
+	}
+	return out[0] + " + " + out[1]
 }
 
 func slug(s string) string {
