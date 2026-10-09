@@ -18,6 +18,7 @@ data:
     CORS="${CORS_ORIGIN:-*}"
     LOOKBACK="${COST_LOOKBACK_DAYS:-30}"
     DASH_CACHE_HOURS="${DASHBOARD_CACHE_HOURS:-12}"
+    BUDGETS_FILE="${BUDGETS_FILE:-$(cd "$(dirname "$0")" && pwd)/budgets.yaml}"
     PAYER_ACCOUNT_ID="${PAYER_ACCOUNT_ID:?PAYER_ACCOUNT_ID is required}"
     PAYER_ROLE_ARN="arn:aws:iam::${PAYER_ACCOUNT_ID}:role/${MEMBER_ROLE}"
 
@@ -95,7 +96,24 @@ data:
     chmod 755 "$(dirname "$OUTPUT")"
     chmod 644 "$OUTPUT"
     rm -f "$TMP"
+    # Append budgets (rendered from .Values.autoConfig.budgets, if any).
+    if [[ -f "$BUDGETS_FILE" ]] && grep -qE '^[[:space:]]*-[[:space:]]+name:' "$BUDGETS_FILE"; then
+      { echo "" ; cat "$BUDGETS_FILE" ; } >> "$OUTPUT"
+    fi
     echo "Wrote ${OUTPUT} (${COUNT} accounts)"
     echo "---"
     cat "$OUTPUT"
+{{- if .Values.autoConfig.budgets }}
+  # Full budgets block appended to the generated config.yaml by
+  # generate-config.sh. Only rendered when autoConfig.budgets is set.
+  budgets.yaml: |
+    budgets:
+{{- range .Values.autoConfig.budgets }}
+      - name: {{ .name | quote }}
+        monthly_usd: {{ .monthlyUSD }}
+{{- if .account }}
+        account: {{ .account | quote }}
+{{- end }}
+{{- end }}
+{{- end }}
 {{- end }}

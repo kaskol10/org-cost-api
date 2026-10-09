@@ -22,6 +22,16 @@ billing_profile: Master.AdministratorAccess
 
 # Optional: daily cost snapshots for trends (default ~/.org-cost/history)
 # history_dir: /Users/you/.org-cost/history
+
+# Optional: monthly budgets for EOM projection + over-budget alerts.
+# In Helm (autoConfig) set autoConfig.budgets; in static config write them here.
+# budgets:
+#   - name: org
+#     monthly_usd: 65000
+#   # Per-account budget (match account name or id):
+#   # - name: production
+#   #   monthly_usd: 40000
+#   #   account: production
 # prior_period_cache_hours: 24
 # dashboard_cache_hours: 12  # shared PVC JSON + in-memory TTL (CE data is ~daily)
 
