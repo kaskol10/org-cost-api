@@ -81,6 +81,14 @@ bootstrapJob:
   corsOrigin: "https://costs.internal.example.com"
   memberRoleName: OrgCostReadOnly
 
+# Budgets are appended to the auto-generated config.yaml (drives the EOM
+# forecast bar, over-budget suggestions and alerts).
+autoConfig:
+  enabled: true
+  budgets:
+    - name: org
+      monthlyUSD: 65000
+
 staticConfig:
   enabled: true
   data: |

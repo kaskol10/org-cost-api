@@ -96,6 +96,14 @@ autoConfig:
   costLookbackDays: 30
   dashboardCacheHours: 12
   accountNamePrefix: ""
+  # Optional monthly budgets appended to the generated config.yaml.
+  # Drives the EOM forecast, over-budget suggestions, and the UI budget bar.
+  # Empty list = no budgets. For staticConfig, write `budgets:` in data instead.
+  # - name: org
+  #   monthlyUSD: 65000
+  #   # Optional: scope to one account (name or id); org-wide when omitted.
+  #   account: production
+  budgets: []
   image:
     # Multi-arch (arm64/amd64). Entrypoint is aws — Deployment overrides to bash.
     repository: public.ecr.aws/aws-cli/aws-cli
