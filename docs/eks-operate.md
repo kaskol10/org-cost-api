@@ -83,11 +83,17 @@ bootstrapJob:
 
 # Budgets are appended to the auto-generated config.yaml (drives the EOM
 # forecast bar, over-budget suggestions and alerts).
+# spikes tuning is appended the same way (all fields optional).
 autoConfig:
   enabled: true
   budgets:
     - name: org
       monthlyUSD: 65000
+  # spikes:
+  #   baselineDays: 14
+  #   minDeviationPct: 50
+  #   minDeviationUsd: 50
+  #   minBaselineSharePct: 15
 
 staticConfig:
   enabled: true

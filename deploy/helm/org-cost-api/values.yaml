@@ -104,6 +104,16 @@ autoConfig:
   #   # Optional: scope to one account (name or id); org-wide when omitted.
   #   account: production
   budgets: []
+  # Optional: tune daily spike detection, appended to the generated config.yaml.
+  # All fields optional — leave {} for the defaults (14-day baseline, >=50%
+  # deviation, >=max($50, 15% of baseline)). For staticConfig, write a
+  # `spikes:` section in staticConfig.data instead.
+  # spikes:
+  #   baselineDays: 14
+  #   minDeviationPct: 50
+  #   minDeviationUsd: 50
+  #   minBaselineSharePct: 15
+  spikes: {}
   image:
     # Multi-arch (arm64/amd64). Entrypoint is aws — Deployment overrides to bash.
     repository: public.ecr.aws/aws-cli/aws-cli

@@ -101,6 +101,17 @@ func (a *Aggregator) trendsFromView(ctx context.Context, dash *DashboardResponse
 		snapCount     int
 	)
 
+	spikeParams := analysis.SpikeParams{
+		SkipLast: view.IncompleteDays,
+	}
+	if sc := a.cfg.Spikes; sc != nil {
+		spikeParams.BaselineDays = sc.BaselineDays
+		spikeParams.MinDeviationPct = sc.MinDeviationPct
+		spikeParams.MinDeviationUSD = sc.MinDeviationUSD
+		spikeParams.MinBaselineSharePct = sc.MinBaselineSharePct
+	}
+	effective := analysis.EffectiveSpikeParams(spikeParams)
+
 	finish := func() *analysis.TrendsResponse {
 		resp := analysis.BuildTrends(view, priorMap, priorAccounts, priorTotal, source, ceCalls, historyNote, snapCount)
 		resp.Period = string(mode)
@@ -109,9 +120,13 @@ func (a *Aggregator) trendsFromView(ctx context.Context, dash *DashboardResponse
 			End:   priorEnd,
 			Days:  appconfig.PeriodDayCount(priorStart, priorEnd),
 		}
-		resp.Spikes = analysis.DetectSpikesWithAccounts(view.OrgDaily, view.AccountDaily, analysis.SpikeParams{
-			SkipLast: view.IncompleteDays,
-		})
+		resp.Spikes = analysis.DetectSpikesWithAccounts(view.OrgDaily, view.AccountDaily, spikeParams)
+		resp.SpikeMeta = &analysis.SpikeMeta{
+			BaselineDays:        effective.BaselineDays,
+			MinDeviationPct:     effective.MinDeviationPct,
+			MinDeviationUSD:     effective.MinDeviationUSD,
+			MinBaselineSharePct: effective.MinBaselineSharePct,
+		}
 		return resp
 	}
 

@@ -32,6 +32,17 @@ billing_profile: Master.AdministratorAccess
 #   # - name: production
 #   #   monthly_usd: 40000
 #   #   account: production
+
+# Optional: tune daily spike detection (all fields optional).
+# A day is flagged when it deviates >= min_deviation_pct AND at least
+# max(min_deviation_usd, min_baseline_share_pct% of that day's baseline).
+# The most recent cost_lag days are excluded while CE is still settling.
+# spikes:
+#   baseline_days: 14
+#   min_deviation_pct: 50
+#   min_deviation_usd: 50
+#   min_baseline_share_pct: 15
+
 # prior_period_cache_hours: 24
 # dashboard_cache_hours: 12  # shared PVC JSON + in-memory TTL (CE data is ~daily)
 

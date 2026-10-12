@@ -47,6 +47,15 @@ type Budget struct {
 	Account    string  `yaml:"account,omitempty"` // account name or id; empty = org-wide
 }
 
+// SpikeConfig tunes daily spike detection (see analysis.SpikeParams). All
+// fields are optional; zero values fall back to the built-in defaults.
+type SpikeConfig struct {
+	BaselineDays int `yaml:"baseline_days,omitempty"`    // trailing baseline window (default 14, min 7)
+	MinDeviationPct float64 `yaml:"min_deviation_pct,omitempty"` // deviation vs baseline, % (default 50)
+	MinDeviationUSD float64 `yaml:"min_deviation_usd,omitempty"` // absolute floor, $ (default 50)
+	MinBaselineSharePct float64 `yaml:"min_baseline_share_pct,omitempty"` // adaptive floor: % of the day's baseline (default 15)
+}
+
 type Config struct {
 	Accounts   []Account `yaml:"accounts"`
 	ListenAddr string    `yaml:"listen_addr"`
@@ -84,6 +93,8 @@ type Config struct {
 	CUR            *CURConfig `yaml:"cur,omitempty"`
 	// Budgets are monthly spend budgets for over-budget detection (see Budget).
 	Budgets []Budget `yaml:"budgets,omitempty"`
+	// Spikes tunes daily spike detection (all optional; see SpikeConfig).
+	Spikes *SpikeConfig `yaml:"spikes,omitempty"`
 	// Demo serves fixture data only — no AWS calls (also enabled via ORG_COST_DEMO=1).
 	Demo bool `yaml:"demo,omitempty"`
 }

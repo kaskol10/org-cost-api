@@ -15,8 +15,6 @@ type Spike struct {
 	DeviationPct float64  `json:"deviation_pct"`
 	Direction    string   `json:"direction"` // up | down
 	AccountIDs   []string `json:"account_ids,omitempty"`
-	// Incomplete is true when the day is inside the CE-lag window.
-	Incomplete bool `json:"incomplete,omitempty"`
 }
 
 // SpikeParams tunes spike detection.
@@ -27,7 +25,14 @@ type SpikeParams struct {
 	MinDeviationPct float64
 	// MinDeviationUSD: also require absolute deviation >= this (default 50).
 	MinDeviationUSD float64
-	// SkipLast is the number of most recent days to treat as CE-lagging.
+	// MinBaselineSharePct raises the absolute floor to this % of the day's
+	// baseline when that is larger than MinDeviationUSD (default 15). This
+	// keeps the detector scale-aware: a $50 wiggle is noise on a $2000/day
+	// org but meaningful on a $120/day org.
+	MinBaselineSharePct float64
+	// SkipLast is the number of most recent days to exclude as CE-lagging
+	// (unsettled data). Defaults to 0 — the service layer sets it from
+	// CostLagDays() so the most recent partial days are never analyzed.
 	SkipLast int
 	// MaxSpikes caps the result (default 10).
 	MaxSpikes int
@@ -43,10 +48,20 @@ func (p SpikeParams) defaults() SpikeParams {
 	if p.MinDeviationUSD <= 0 {
 		p.MinDeviationUSD = 50
 	}
+	if p.MinBaselineSharePct <= 0 {
+		p.MinBaselineSharePct = 15
+	}
 	if p.MaxSpikes <= 0 {
 		p.MaxSpikes = 10
 	}
 	return p
+}
+
+// EffectiveSpikeParams returns p with built-in defaults applied for any
+// unset field. Used for detection and to expose effective thresholds to the
+// UI (SpikeMeta).
+func EffectiveSpikeParams(p SpikeParams) SpikeParams {
+	return p.defaults()
 }
 
 // DetectSpikes flags days whose spend deviates from the trailing median
@@ -84,9 +99,13 @@ func DetectSpikesWithAccounts(daily []DailyPoint, accounts []AccountDailyView, p
 	sort.Slice(sorted, func(i, j int) bool { return sorted[i].Date < sorted[j].Date })
 
 	var out []Spike
+	// The most recent SkipLast days are excluded from candidates: CE data is
+	// still settling there, so comparing a partial day to a full-day baseline
+	// produces fake anomalies (typically a "dip" on the very last day).
+	lastComplete := len(sorted) - params.SkipLast
 	// Walk days oldest→newest so the trailing baseline never includes the
 	// candidate day itself.
-	for i := params.BaselineDays; i < len(sorted); i++ {
+	for i := params.BaselineDays; i < lastComplete; i++ {
 		day := sorted[i]
 		window := sorted[i-params.BaselineDays : i]
 		base := median(windowAmounts(window))
@@ -103,11 +122,14 @@ func DetectSpikesWithAccounts(daily []DailyPoint, accounts []AccountDailyView, p
 		if math.Abs(devPct) < params.MinDeviationPct {
 			continue
 		}
-		if math.Abs(deviation) < params.MinDeviationUSD {
-			continue
+		// Absolute floor is the larger of MinDeviationUSD and a share of the
+		// day's baseline: keeps small orgs sensitive while ignoring sub-%
+		// noise on large orgs.
+		minUSD := params.MinDeviationUSD
+		if share := base * params.MinBaselineSharePct / 100; share > minUSD {
+			minUSD = share
 		}
-		// A near-zero recent day is usually CE lag, not a real drop.
-		if deviation < 0 && i >= len(sorted)-params.SkipLast {
+		if math.Abs(deviation) < minUSD {
 			continue
 		}
 		spike := Spike{
@@ -117,11 +139,8 @@ func DetectSpikesWithAccounts(daily []DailyPoint, accounts []AccountDailyView, p
 			DeviationPct: devPct,
 			Direction:    directionFor(deviation),
 		}
-		if i >= len(sorted)-params.SkipLast {
-			spike.Incomplete = true
-		}
 		if amounts, ok := acctByDate[day.Date]; ok {
-			spike.AccountIDs = topAccountIDs(amounts, params.MinDeviationUSD*0.5)
+			spike.AccountIDs = topAccountIDs(amounts, minUSD*0.5)
 		}
 		out = append(out, spike)
 	}

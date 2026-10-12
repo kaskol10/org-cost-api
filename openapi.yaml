@@ -743,9 +743,11 @@ components:
             $ref: "#/components/schemas/AccountTrend"
         spikes:
           type: array
-          description: Daily org-spend anomalies vs the trailing 14-day median baseline.
+          description: Daily org-spend anomalies vs the trailing median baseline.
           items:
             $ref: "#/components/schemas/Spike"
+        spike_meta:
+          $ref: "#/components/schemas/SpikeMeta"
         history_note:
           type: string
         snapshot_count:
@@ -774,9 +776,27 @@ components:
           description: Top accounts contributing the flagged day's spend.
           items:
             type: string
-        incomplete:
-          type: boolean
-          description: True when the day is inside the Cost Explorer lag window.
+    SpikeMeta:
+      type: object
+      description: >-
+        Effective spike-detection thresholds (after defaults are applied),
+        echoed so clients can describe the detection rule instead of
+        hardcoding it.
+      properties:
+        baseline_days:
+          type: integer
+          description: Trailing baseline window.
+        min_deviation_pct:
+          type: number
+          description: Minimum deviation vs baseline, in percent.
+        min_deviation_usd:
+          type: number
+          description: Minimum absolute deviation, in USD.
+        min_baseline_share_pct:
+          type: number
+          description: >-
+            Adaptive absolute floor: at least this percent of the day's
+            baseline (whichever is larger than min_deviation_usd).
     Suggestion:
       type: object
       properties:

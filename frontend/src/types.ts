@@ -313,7 +313,14 @@ export interface Spike {
   deviation_pct: number;
   direction: string;
   account_ids?: string[];
-  incomplete?: boolean;
+}
+
+// Effective spike-detection thresholds (echoed from the backend for UI copy).
+export interface SpikeMeta {
+  baseline_days: number;
+  min_deviation_pct: number;
+  min_deviation_usd: number;
+  min_baseline_share_pct: number;
 }
 
 export interface TrendsResponse {
@@ -331,6 +338,7 @@ export interface TrendsResponse {
   top_account_increases?: AccountTrend[];
   top_account_decreases?: AccountTrend[];
   spikes?: Spike[];
+  spike_meta?: SpikeMeta;
   history_note?: string;
   snapshot_count?: number;
   refresh_allowed?: boolean;

@@ -308,6 +308,7 @@ export default function App() {
               <SpikesPanel
                 spikes={trends.spikes}
                 accounts={data.accounts}
+                spikeMeta={trends.spike_meta}
                 onAskAbout={handleAskAbout}
               />
             )}

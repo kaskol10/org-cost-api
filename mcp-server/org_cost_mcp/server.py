@@ -357,13 +357,22 @@ def get_waste_signals(refresh: bool = False) -> str:
 def get_cost_anomalies(refresh: bool = False) -> str:
     """
     Daily spend anomalies for the org: days where spend deviated sharply from the
-    trailing 14-day baseline (>=50% and >=$50), with account attribution.
-    Use this for "what's off today / this week?" — complements period-over-period
-    trends (get_cost_trends) with daily granularity. Cached by default.
+    trailing median baseline, with account attribution. Thresholds are
+    configurable (spikes: in config) and scale-aware — see the method line in
+    the response for the effective values. Use this for "what's off today /
+    this week?" — complements period-over-period trends (get_cost_trends) with
+    daily granularity. Cached by default.
     """
     report = fetch_report(refresh=refresh)
     trends = report.get("trends") or {}
     dashboard = report.get("dashboard") or {}
+    meta = trends.get("spike_meta") or {}
+    method = (
+        "daily spend vs trailing "
+        f"{meta.get('baseline_days', 14)}-day median baseline: >= "
+        f"{meta.get('min_deviation_pct', 50)}% AND >= max(${meta.get('min_deviation_usd', 50)}, "
+        f"{meta.get('min_baseline_share_pct', 15)}% of baseline)"
+    )
 
     name_by_id: dict[str, str] = {}
     for acct in dashboard.get("accounts") or []:
@@ -380,7 +389,6 @@ def get_cost_anomalies(refresh: bool = False) -> str:
                 "amount_usd": s.get("amount_usd"),
                 "baseline_usd": s.get("baseline_usd"),
                 "deviation_pct": round(float(s.get("deviation_pct") or 0), 1),
-                "incomplete": s.get("incomplete", False),
                 "accounts": [name_by_id.get(i, i) for i in ids],
             }
         )
@@ -391,12 +399,12 @@ def get_cost_anomalies(refresh: bool = False) -> str:
                 "start": (trends.get("current_period") or {}).get("start"),
                 "end": (trends.get("current_period") or {}).get("end"),
             },
-            "method": "daily spend vs trailing 14-day median baseline (>=50% and >=$50)",
+            "method": method,
             "spike_count": len(enriched),
             "spikes": enriched,
             "guidance": [
                 "direction=up means a spend spike; direction=down a drop.",
-                "incomplete=true means the day is inside the Cost Explorer lag window.",
+                "The most recent days are excluded while Cost Explorer is still settling them.",
                 "Drill into a spike day with get_service_tag_delta or get_service_detail.",
             ],
         },
