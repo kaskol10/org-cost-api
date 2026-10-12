@@ -1,9 +1,10 @@
-import type { AccountDashboard, Spike } from "../types";
+import type { AccountDashboard, Spike, SpikeMeta } from "../types";
 import { formatCurrency, formatSignedCurrency, formatSignedPercent } from "../utils/format";
 
 interface Props {
   spikes: Spike[];
   accounts: AccountDashboard[];
+  spikeMeta?: SpikeMeta;
   onAskAbout?: (question: string) => void;
 }
 
@@ -16,20 +17,33 @@ function spikeAskQuestion(s: Spike, names: string[]): string {
   )} baseline)${where}. What likely caused it?`;
 }
 
-export default function SpikesPanel({ spikes, accounts, onAskAbout }: Props) {
+export default function SpikesPanel({
+  spikes,
+  accounts,
+  spikeMeta,
+  onAskAbout,
+}: Props) {
   if (!spikes.length) return null;
 
   const nameById = new Map(accounts.map((a) => [a.account_id, a.account_name]));
   const namesFor = (ids?: string[]) =>
     (ids ?? []).map((id) => nameById.get(id) ?? id);
 
+  const baselineDays = spikeMeta?.baseline_days ?? 14;
+  const minPct = spikeMeta?.min_deviation_pct ?? 50;
+  const minUsd = spikeMeta?.min_deviation_usd ?? 50;
+  const minShare = spikeMeta?.min_baseline_share_pct ?? 15;
+
   return (
     <section className="panel spikes-panel" aria-label="Daily spend spikes">
       <div className="spikes-head">
         <h2>Daily spikes</h2>
         <p className="spikes-sub">
-          Days where org spend deviated from the trailing 14-day baseline
-          (≥50% and ≥$50).
+          Days where org spend deviated from the trailing {baselineDays}-day
+          baseline (≥{minPct}% and at least $
+          {minUsd.toLocaleString()} or {minShare}% of that day's baseline,
+          whichever is larger). The most recent days are excluded while Cost
+          Explorer is still settling them.
         </p>
       </div>
       <ul className="spikes-list">
@@ -49,7 +63,6 @@ export default function SpikesPanel({ spikes, accounts, onAskAbout }: Props) {
               </div>
               <div className="spike-meta">
                 {formatCurrency(s.baseline_usd)} → {formatCurrency(s.amount_usd)}
-                {s.incomplete && " · day still settling (CE lag)"}
               </div>
               {namesFor(s.account_ids).length > 0 && (
                 <div className="spike-accounts">

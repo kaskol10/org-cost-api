@@ -199,6 +199,11 @@ def build_markdown_report(
 
     spikes = trends.get("spikes") or []
     if spikes:
+        meta = trends.get("spike_meta") or {}
+        baseline_days = meta.get("baseline_days", 14)
+        min_pct = meta.get("min_deviation_pct", 50)
+        min_usd = meta.get("min_deviation_usd", 50)
+        min_share = meta.get("min_baseline_share_pct", 15)
         lines.extend(["## Daily spikes", ""])
         for s in spikes[:6]:
             direction = s.get("direction") or "up"
@@ -206,14 +211,15 @@ def build_markdown_report(
             pct = float(s.get("deviation_pct") or 0)
             accounts = s.get("account_ids") or []
             accounts_s = f" · accounts: {', '.join(accounts)}" if accounts else ""
-            incomplete = " · ⚠ day still settling (CE lag)" if s.get("incomplete") else ""
             lines.append(
                 f"- {arrow} **{s.get('date')}** {_usd(s.get('amount_usd'))} "
-                f"({_pct(pct)} vs ~{_usd(s.get('baseline_usd'))} baseline){accounts_s}{incomplete}"
+                f"({_pct(pct)} vs ~{_usd(s.get('baseline_usd'))} baseline){accounts_s}"
             )
         lines.append("")
         lines.append(
-            "_Daily spend vs trailing 14-day baseline (≥50% and ≥$50). "
+            f"_Daily spend vs trailing {baseline_days}-day baseline (≥{min_pct}% and at least "
+            f"${min_usd} or {min_share}% of that day's baseline, whichever is larger); "
+            "recent days excluded while Cost Explorer settles. "
             "Use get_service_tag_delta / get_service_detail to drill in._"
         )
         lines.append("")

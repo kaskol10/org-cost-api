@@ -55,6 +55,53 @@ func TestDetectSpikesIgnoresLaggingDips(t *testing.T) {
 	}
 }
 
+func TestDetectSpikesSkipsUnsettledDaysBothDirections(t *testing.T) {
+	// A big move on a day that is still inside the CE-lag window must not be
+	// analyzed at all (up or down) — it is a partial day, not a real anomaly.
+	daily := dailySeries(21, 1000)
+	daily[19].Amount = 5000 // second-to-last day, within SkipLast=2
+	daily[20].Amount = 10   // last day, within SkipLast=2
+
+	spikes := DetectSpikes(daily, SpikeParams{SkipLast: 2})
+	for _, s := range spikes {
+		if s.Date == daily[19].Date || s.Date == daily[20].Date {
+			t.Fatalf("unsettled day was flagged: %+v", s)
+		}
+	}
+
+	// Same data with SkipLast=0: the moves are real and get flagged.
+	spikes = DetectSpikes(daily, SpikeParams{SkipLast: 0})
+	if len(spikes) == 0 {
+		t.Fatal("expected spikes when no days are skipped")
+	}
+}
+
+func TestDetectSpikesAdaptiveFloor(t *testing.T) {
+	// With a low percentage threshold (to catch subtle drift on a stable
+	// org), the adaptive floor (15% of baseline by default) still stops pure
+	// noise: +10% on a $1000 baseline is below the $150 floor.
+	daily := dailySeries(21, 1000)
+	daily[18].Amount = 1100 // +10%
+
+	params := SpikeParams{MinDeviationPct: 10}
+	for _, s := range DetectSpikes(daily, params) {
+		if s.Date == daily[18].Date {
+			t.Fatalf("noise below adaptive floor was flagged: %+v", s)
+		}
+	}
+
+	// Lowering the share floor makes the same move flag.
+	params.MinBaselineSharePct = 5
+	if spikes := DetectSpikes(daily, params); len(spikes) == 0 || spikes[0].Date != daily[18].Date {
+		t.Fatalf("expected spike with lowered share floor, got %+v", spikes)
+	}
+
+	// Default pct (50%): the same +10% move is ignored by the pct test.
+	if spikes := DetectSpikes(daily, SpikeParams{}); len(spikes) != 0 {
+		t.Fatalf("expected no spikes at default thresholds, got %+v", spikes)
+	}
+}
+
 func TestDetectSpikesRespectsUSDThreshold(t *testing.T) {
 	daily := dailySeries(21, 20)
 	// +200% but only $40 above baseline of $20 — absolute deviation below $50.

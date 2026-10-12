@@ -43,6 +43,15 @@ type PeriodSummary struct {
 }
 
 // TrendsResponse compares current vs prior period using dashboard + history.
+// SpikeMeta exposes the effective spike-detection thresholds (after defaults
+// are applied) so the UI can describe them instead of hardcoding.
+type SpikeMeta struct {
+	BaselineDays        int     `json:"baseline_days"`
+	MinDeviationPct     float64 `json:"min_deviation_pct"`
+	MinDeviationUSD     float64 `json:"min_deviation_usd"`
+	MinBaselineSharePct float64 `json:"min_baseline_share_pct"`
+}
+
 type TrendsResponse struct {
 	GeneratedAt         string         `json:"generated_at"`
 	Period              string         `json:"period,omitempty"` // 30d | mtd
@@ -59,6 +68,8 @@ type TrendsResponse struct {
 	TopAccountDecreases []AccountTrend `json:"top_account_decreases"`
 	// Spikes are daily anomalies in org spend within the current period.
 	Spikes []Spike `json:"spikes,omitempty"`
+	// SpikeMeta describes the detection thresholds used for Spikes (for UI copy).
+	SpikeMeta *SpikeMeta `json:"spike_meta,omitempty"`
 	HistoryNote         string         `json:"history_note,omitempty"`
 	SnapshotCount       int            `json:"snapshot_count,omitempty"`
 	RefreshAllowed      bool           `json:"refresh_allowed,omitempty"`
