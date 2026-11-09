@@ -143,6 +143,15 @@ jobs:
         with:
           python-version: "3.12"
 
+      # Version comes from the tag (v0.0.12 → 0.0.12) so every release
+      # publishes; a static pyproject version collides with the one already on PyPI.
+      - name: Set package version from tag
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          sed -i -E "s/^version = \".*\"/version = \"${VERSION}\"/" pyproject.toml
+          grep -q "^version = \"${VERSION}\"" pyproject.toml
+
       - run: pip install build
       - run: python -m build
 
