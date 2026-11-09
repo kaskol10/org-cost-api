@@ -20,21 +20,60 @@ func New(agg *service.Aggregator, corsOrigin, apiToken string) *API {
 	return &API{agg: agg, corsOrigin: corsOrigin, apiToken: apiToken}
 }
 
+// APIVersionPrefix is the versioned base path documented in openapi.yaml.
+// LegacyPrefix (/api) is a permanent alias so existing integrations keep working.
+const (
+	APIVersionPrefix = "/api/v1"
+	LegacyPrefix     = "/api"
+)
+
+// Route is one API endpoint, relative to the version prefix.
+type Route struct {
+	Method string
+	Path   string // e.g. "/report"
+}
+
+func (a *API) routeTable() []struct {
+	Route
+	h http.HandlerFunc
+} {
+	return []struct {
+		Route
+		h http.HandlerFunc
+	}{
+		{Route{"GET", "/health"}, a.health},
+		{Route{"GET", "/ready"}, a.ready},
+		{Route{"GET", "/meta"}, a.meta},
+		{Route{"GET", "/accounts"}, a.accounts},
+		{Route{"GET", "/dashboard"}, a.dashboard},
+		{Route{"GET", "/trends"}, a.trends},
+		{Route{"GET", "/suggestions"}, a.suggestions},
+		{Route{"GET", "/report"}, a.report},
+		{Route{"GET", "/account-costs"}, a.accountCosts},
+		{Route{"POST", "/ask"}, a.ask},
+		{Route{"GET", "/service-detail"}, a.serviceDetail},
+		{Route{"GET", "/service-tag-delta"}, a.serviceTagDelta},
+		{Route{"GET", "/service-tag-totals"}, a.serviceTagTotals},
+	}
+}
+
+// Endpoints lists every endpoint (relative to APIVersionPrefix); used by the
+// OpenAPI parity test.
+func (a *API) Endpoints() []Route {
+	rt := a.routeTable()
+	out := make([]Route, 0, len(rt))
+	for _, r := range rt {
+		out = append(out, r.Route)
+	}
+	return out
+}
+
 func (a *API) Routes(staticDir string) http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/health", a.health)
-	mux.HandleFunc("GET /api/ready", a.ready)
-	mux.HandleFunc("GET /api/meta", a.meta)
-	mux.HandleFunc("GET /api/accounts", a.accounts)
-	mux.HandleFunc("GET /api/dashboard", a.dashboard)
-	mux.HandleFunc("GET /api/trends", a.trends)
-	mux.HandleFunc("GET /api/suggestions", a.suggestions)
-	mux.HandleFunc("GET /api/report", a.report)
-	mux.HandleFunc("GET /api/account-costs", a.accountCosts)
-	mux.HandleFunc("POST /api/ask", a.ask)
-	mux.HandleFunc("GET /api/service-detail", a.serviceDetail)
-	mux.HandleFunc("GET /api/service-tag-delta", a.serviceTagDelta)
-	mux.HandleFunc("GET /api/service-tag-totals", a.serviceTagTotals)
+	for _, r := range a.routeTable() {
+		mux.HandleFunc(r.Method+" "+APIVersionPrefix+r.Path, r.h)
+		mux.HandleFunc(r.Method+" "+LegacyPrefix+r.Path, r.h)
+	}
 	handler := a.withCORS(withBearerAuth(a.apiToken, mux))
 	if staticDir != "" {
 		return withStaticSPA(handler, staticDir)

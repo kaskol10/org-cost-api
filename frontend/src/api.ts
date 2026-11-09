@@ -6,6 +6,54 @@ import type {
   ServiceTagTotalsResponse,
   SuggestionsResponse,
 } from "./types";
+import type { components, paths } from "./generated/openapi";
+
+/** Versioned base path of the org-cost API (see openapi.yaml). `/api` is a legacy alias. */
+export const API_PREFIX = "/api/v1";
+
+/** Spec paths that have a GET operation. */
+type GetPath = {
+  [P in keyof paths]: NonNullable<paths[P]["get"]> extends never ? never : P;
+}[keyof paths];
+
+/** Query parameters the spec declares for a GET path. */
+type GetQuery<P extends GetPath> = NonNullable<paths[P]["get"]> extends {
+  parameters: { query?: infer Q };
+}
+  ? Q
+  : never;
+
+type AskRequestBody = components["schemas"]["AskRequest"];
+
+function queryString(query: object | undefined): string {
+  if (!query) return "";
+  const q = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value === undefined || value === null || value === "") continue;
+    q.set(key, String(value));
+  }
+  const s = q.toString();
+  return s ? `?${s}` : "";
+}
+
+/**
+ * GET a spec-declared path. `path` and `query` are type-checked against
+ * src/generated/openapi.ts (regenerate with `npm run gen:api`), so the UI can
+ * only call endpoints and parameters the public API contract documents.
+ * Response bodies are typed by the callers with the richer types in ./types.
+ */
+export async function apiGet<P extends GetPath>(
+  path: P,
+  query?: GetQuery<P>,
+  signal?: AbortSignal
+): Promise<unknown> {
+  const res = await fetch(apiUrl(`${path}${queryString(query ?? undefined)}`), {
+    headers: apiHeaders(),
+    signal,
+  });
+  if (!res.ok) await parseError(res);
+  return res.json();
+}
 
 export class ApiError extends Error {
   status: number;
@@ -23,7 +71,7 @@ export function apiBase(): string {
   return raw.replace(/\/+$/, "");
 }
 
-/** Build a full API URL from a path (e.g. "/api/report"). */
+/** Build a full API URL from a path (e.g. "/api/v1/report"). */
 export function apiUrl(path: string): string {
   const base = apiBase();
   if (!base) return path;
@@ -46,25 +94,17 @@ export function apiHeaders(extra: Record<string, string> = {}): Record<string, s
 }
 
 export async function fetchMeta(): Promise<{ demo: boolean }> {
-  const res = await fetch(apiUrl("/api/meta"), { headers: apiHeaders() });
-  if (!res.ok) await parseError(res);
-  return res.json();
+  return (await apiGet("/api/v1/meta")) as { demo: boolean };
 }
 
 export type PeriodPreset = "30d" | "mtd";
 
 export async function fetchReport(period: PeriodPreset = "30d"): Promise<ReportResponse> {
-  const q = new URLSearchParams({ period });
-  const res = await fetch(apiUrl(`/api/report?${q}`), { headers: apiHeaders() });
-  if (!res.ok) await parseError(res);
-  return res.json();
+  return (await apiGet("/api/v1/report", { period })) as ReportResponse;
 }
 
 export async function fetchReportFresh(period: PeriodPreset = "30d"): Promise<ReportResponse> {
-  const q = new URLSearchParams({ period, refresh: "1" });
-  const res = await fetch(apiUrl(`/api/report?${q}`), { headers: apiHeaders() });
-  if (!res.ok) await parseError(res);
-  return res.json();
+  return (await apiGet("/api/v1/report", { period, refresh: "1" })) as ReportResponse;
 }
 
 export async function fetchAsk(
@@ -72,10 +112,11 @@ export async function fetchAsk(
   refresh = false,
   signal?: AbortSignal
 ): Promise<AskResponse> {
-  const res = await fetch(apiUrl("/api/ask"), {
+  const body: AskRequestBody = { question, refresh };
+  const res = await fetch(apiUrl(`${API_PREFIX}/ask`), {
     method: "POST",
     headers: apiHeaders({ "Content-Type": "application/json" }),
-    body: JSON.stringify({ question, refresh }),
+    body: JSON.stringify(body),
     signal,
   });
   if (!res.ok) await parseError(res);
@@ -288,17 +329,12 @@ export async function fetchServiceDetail(params: {
   start?: string;
   end?: string;
 }): Promise<ServiceDetail> {
-  const q = new URLSearchParams();
-  q.set("account_id", params.account_id);
-  q.set("service", params.service);
-  if (params.start) q.set("start", params.start);
-  if (params.end) q.set("end", params.end);
-
-  const res = await fetch(apiUrl(`/api/service-detail?${q.toString()}`), {
-    headers: apiHeaders(),
-  });
-  if (!res.ok) await parseError(res);
-  return res.json();
+  return (await apiGet("/api/v1/service-detail", {
+    account_id: params.account_id,
+    service: params.service,
+    start: params.start,
+    end: params.end,
+  })) as ServiceDetail;
 }
 
 export async function fetchServiceTagDelta(params: {
@@ -310,20 +346,18 @@ export async function fetchServiceTagDelta(params: {
   top_accounts?: number;
   signal?: AbortSignal;
 }): Promise<ServiceTagDeltaResponse> {
-  const q = new URLSearchParams();
-  q.set("service", params.service);
-  if (params.account_id) q.set("account_id", params.account_id);
-  if (params.start) q.set("start", params.start);
-  if (params.end) q.set("end", params.end);
-  q.set("tag_key", params.tag_key ?? "Name");
-  if (params.top_accounts != null) q.set("top_accounts", String(params.top_accounts));
-
-  const res = await fetch(apiUrl(`/api/service-tag-delta?${q.toString()}`), {
-    headers: apiHeaders(),
-    signal: params.signal,
-  });
-  if (!res.ok) await parseError(res);
-  return res.json();
+  return (await apiGet(
+    "/api/v1/service-tag-delta",
+    {
+      service: params.service,
+      account_id: params.account_id,
+      start: params.start,
+      end: params.end,
+      tag_key: params.tag_key ?? "Name",
+      top_accounts: params.top_accounts,
+    },
+    params.signal
+  )) as ServiceTagDeltaResponse;
 }
 
 export async function fetchServiceTagTotals(params: {
@@ -335,18 +369,16 @@ export async function fetchServiceTagTotals(params: {
   top_buckets?: number;
   signal?: AbortSignal;
 }): Promise<ServiceTagTotalsResponse> {
-  const q = new URLSearchParams();
-  q.set("service", params.service);
-  if (params.account_id) q.set("account_id", params.account_id);
-  if (params.start) q.set("start", params.start);
-  if (params.end) q.set("end", params.end);
-  q.set("tag_key", params.tag_key ?? "Name");
-  if (params.top_buckets != null) q.set("top_buckets", String(params.top_buckets));
-
-  const res = await fetch(apiUrl(`/api/service-tag-totals?${q.toString()}`), {
-    headers: apiHeaders(),
-    signal: params.signal,
-  });
-  if (!res.ok) await parseError(res);
-  return res.json();
+  return (await apiGet(
+    "/api/v1/service-tag-totals",
+    {
+      service: params.service,
+      account_id: params.account_id,
+      start: params.start,
+      end: params.end,
+      tag_key: params.tag_key ?? "Name",
+      top_buckets: params.top_buckets,
+    },
+    params.signal
+  )) as ServiceTagTotalsResponse;
 }

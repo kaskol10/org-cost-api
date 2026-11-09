@@ -7,7 +7,15 @@ import (
 )
 
 func isPublicPath(path string) bool {
-	return path == "/api/health" || path == "/api/ready" || path == "/api/meta"
+	for _, prefix := range []string{APIVersionPrefix, LegacyPrefix} {
+		switch strings.TrimPrefix(path, prefix) {
+		case "/health", "/ready", "/meta":
+			if strings.HasPrefix(path, prefix+"/") {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func withBearerAuth(token string, next http.Handler) http.Handler {
