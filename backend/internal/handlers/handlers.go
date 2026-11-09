@@ -13,11 +13,22 @@ import (
 type API struct {
 	agg        *service.Aggregator
 	corsOrigin string
-	apiToken   string
+	clients    []APIClient
 }
 
+// New builds the API with a single optional bearer token (client "default").
 func New(agg *service.Aggregator, corsOrigin, apiToken string) *API {
-	return &API{agg: agg, corsOrigin: corsOrigin, apiToken: apiToken}
+	var clients []APIClient
+	if apiToken != "" {
+		clients = []APIClient{{Name: "default", Token: apiToken}}
+	}
+	return NewWithClients(agg, corsOrigin, clients)
+}
+
+// NewWithClients builds the API with named client tokens. No clients means
+// auth is disabled and every request is attributed to "anonymous".
+func NewWithClients(agg *service.Aggregator, corsOrigin string, clients []APIClient) *API {
+	return &API{agg: agg, corsOrigin: corsOrigin, clients: clients}
 }
 
 // APIVersionPrefix is the versioned base path documented in openapi.yaml.
@@ -74,7 +85,7 @@ func (a *API) Routes(staticDir string) http.Handler {
 		mux.HandleFunc(r.Method+" "+APIVersionPrefix+r.Path, r.h)
 		mux.HandleFunc(r.Method+" "+LegacyPrefix+r.Path, r.h)
 	}
-	handler := a.withCORS(withBearerAuth(a.apiToken, mux))
+	handler := a.withCORS(withClientAuth(a.clients, mux))
 	if staticDir != "" {
 		return withStaticSPA(handler, staticDir)
 	}
@@ -279,6 +290,7 @@ func (a *API) withCORS(next http.Handler) http.Handler {
 		w.Header().Set("Access-Control-Allow-Origin", a.corsOrigin)
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Expose-Headers", "Retry-After, X-Refresh-Coalesced")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return

@@ -57,6 +57,28 @@ apiToken: ""
 # Or reference an existing Secret:
 # existingSecret: org-cost-api-token
 # existingSecretKey: ORG_COST_API_TOKEN
+# NOTE: the token is only *enforced* when config.yaml sets api_token_env (or
+# api_clients). With staticConfig add `api_token_env: ORG_COST_API_TOKEN` to
+# staticConfig.data; with autoConfig it is only written when apiClients is set.
+
+# Optional per-integration API tokens (Backstage, a Slack bot, a FinOps script…).
+# Each client authenticates with its own token, shows up by name in the API's
+# access log, can be revoked on its own, and gets its own refresh=1 budget.
+# Each client's token is read from an existing Secret and exposed to the API
+# pod as ORG_COST_API_CLIENT_<NAME> (upper-case, "-" → "_").
+# Any configured client turns on bearer auth for every /api route — including
+# the bundled web UI, which sends no token — so put browser access behind an
+# auth proxy / VPN first. With autoConfig the `api_clients:` block (plus
+# api_token_env when apiToken/existingSecret is set) is generated for you;
+# with staticConfig add it to staticConfig.data yourself, e.g.:
+#   api_clients:
+#     - name: backstage
+#       token_env: ORG_COST_API_CLIENT_BACKSTAGE
+# apiClients:
+#   - name: backstage
+#     existingSecret: org-cost-backstage-token
+#     existingSecretKey: token   # default: token
+apiClients: []
 
 livenessProbe:
   httpGet:

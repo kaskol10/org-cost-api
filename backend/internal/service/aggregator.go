@@ -40,9 +40,10 @@ type Aggregator struct {
 	cachedServiceTagDelta   map[string]*analysis.ServiceTagDeltaResponse
 	cachedServiceTagDeltaAt map[string]time.Time
 
-	// Global force-refresh limiter (1 per 5 minutes).
-	refreshMu       sync.Mutex
-	lastForceRefresh time.Time
+	// Force-refresh limiter (see allowForceRefresh): per client and per cache key.
+	refreshMu          sync.Mutex
+	lastForceByClient  map[string]time.Time
+	lastForceByKey     map[string]time.Time
 	refreshMinInterval time.Duration
 
 	// accountProbe overrides LoadAccountClients for Ready() member-account STS (tests).
@@ -303,11 +304,18 @@ func (a *Aggregator) dashboard(ctx context.Context, force bool, mode appconfig.P
 	start, end := a.cfg.CostDateRangeFor(mode)
 	key := string(mode) + ":" + start + ":" + end
 
+	coalesced := false
 	if force {
-		if err := a.allowForceRefresh(); err != nil {
+		var err error
+		coalesced, err = a.allowForceRefresh(ctx, key)
+		if err != nil {
 			return nil, err
 		}
-		a.invalidateDashboardCache(key)
+		if coalesced {
+			force = false // serve the dashboard another client just rebuilt
+		} else {
+			a.invalidateDashboardCache(key)
+		}
 	}
 
 	a.cacheMu.Lock()
@@ -331,7 +339,9 @@ func (a *Aggregator) dashboard(ctx context.Context, force bool, mode appconfig.P
 	}
 
 	sfKey := key
-	if force {
+	if force || coalesced {
+		// A coalesced request joins the in-flight refresh (if still running)
+		// instead of starting a second Cost Explorer fetch.
 		sfKey = key + ":refresh"
 	}
 	v, err, _ := a.dashSF.Do(sfKey, func() (interface{}, error) {
@@ -368,21 +378,48 @@ func (a *Aggregator) dashboard(ctx context.Context, force bool, mode appconfig.P
 	return &out, nil
 }
 
-func (a *Aggregator) allowForceRefresh() error {
+// allowForceRefresh decides what a refresh=1 request for cache key does:
+//
+//   - The same client refreshing again within the interval gets a 429
+//     (RateLimitedError), as before.
+//   - Another client asking within the interval after the same cache key was
+//     force-refreshed is coalesced: it is served the data that was just
+//     rebuilt instead of a 429, and no new Cost Explorer fetch happens.
+//   - Otherwise the refresh goes ahead.
+//
+// Cost Explorer load stays bounded at one forced fetch per cache key per
+// interval, and one integration polling with refresh=1 can no longer lock
+// the UI and every other client out.
+func (a *Aggregator) allowForceRefresh(ctx context.Context, key string) (coalesce bool, err error) {
 	interval := a.refreshMinInterval
 	if interval <= 0 {
 		interval = 5 * time.Minute
 	}
+	client := ClientFromContext(ctx)
+	now := time.Now()
+
 	a.refreshMu.Lock()
 	defer a.refreshMu.Unlock()
-	if !a.lastForceRefresh.IsZero() {
-		elapsed := time.Since(a.lastForceRefresh)
-		if elapsed < interval {
-			return NewRateLimitedError(interval - elapsed)
+	if a.lastForceByClient == nil {
+		a.lastForceByClient = make(map[string]time.Time)
+	}
+	if a.lastForceByKey == nil {
+		a.lastForceByKey = make(map[string]time.Time)
+	}
+	if last, ok := a.lastForceByClient[client]; ok {
+		if elapsed := now.Sub(last); elapsed < interval {
+			return false, NewRateLimitedError(interval - elapsed)
 		}
 	}
-	a.lastForceRefresh = time.Now()
-	return nil
+	if last, ok := a.lastForceByKey[key]; ok && now.Sub(last) < interval {
+		if info := refreshInfoFrom(ctx); info != nil {
+			info.Coalesced = true
+		}
+		return true, nil
+	}
+	a.lastForceByClient[client] = now
+	a.lastForceByKey[key] = now
+	return false, nil
 }
 
 func (a *Aggregator) invalidateDashboardCache(key string) {

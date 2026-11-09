@@ -82,3 +82,12 @@ func TestDashboard(cfg *appconfig.Config) *DashboardResponse {
 		},
 	}
 }
+
+// RecordForceRefreshForTest records a forced refresh of the dashboard for
+// mode by the client in ctx, without fetching, so handler tests can exercise
+// refresh coalescing and per-client limits.
+func (a *Aggregator) RecordForceRefreshForTest(ctx context.Context, mode appconfig.PeriodMode) error {
+	start, end := a.cfg.CostDateRangeFor(mode)
+	_, err := a.allowForceRefresh(ctx, string(mode)+":"+start+":"+end)
+	return err
+}

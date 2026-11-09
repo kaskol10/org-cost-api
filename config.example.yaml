@@ -17,8 +17,16 @@ billing_profile: Master.AdministratorAccess
 # billing_secret_access_key_env: ORG_COST_BILLING_SECRET
 
 # Optional API auth — when set, /api/* routes require Authorization: Bearer <token>
-# (except /api/health and /api/ready)
+# (except /api/health, /api/ready and /api/meta)
 # api_token_env: ORG_COST_API_TOKEN
+#
+# Optional per-integration tokens (recommended for third-party apps): each client
+# is named in the access log, can be revoked alone, and has its own refresh budget.
+# api_clients:
+#   - name: backstage
+#     token_env: ORG_COST_TOKEN_BACKSTAGE
+#   - name: slack-bot
+#     token_env: ORG_COST_TOKEN_SLACK_BOT
 
 # Optional: daily cost snapshots for trends (default ~/.org-cost/history)
 # history_dir: /Users/you/.org-cost/history

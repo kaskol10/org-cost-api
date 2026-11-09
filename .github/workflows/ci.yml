@@ -55,6 +55,37 @@ jobs:
       - run: pip install -e ".[dev]"
       - run: pytest
 
+  helm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.16.3
+      - name: Lint and render the chart
+        run: |
+          set -euo pipefail
+          CHART=deploy/helm/org-cost-api
+          helm lint "$CHART"
+          helm template t "$CHART" > /dev/null
+          # Per-client tokens with autoConfig: env vars + generated api_clients.
+          out="$(helm template t "$CHART" \
+            --set autoConfig.enabled=true --set autoConfig.payerAccountId=123456789012 \
+            --set apiToken=x \
+            --set 'apiClients[0].name=backstage' --set 'apiClients[0].existingSecret=bs-token' \
+            --set 'apiClients[1].name=slack-bot' --set 'apiClients[1].existingSecret=sb-token' --set 'apiClients[1].existingSecretKey=key')"
+          for want in \
+            'name: ORG_COST_API_CLIENT_BACKSTAGE' \
+            'name: ORG_COST_API_CLIENT_SLACK_BOT' \
+            'echo "api_token_env: ORG_COST_API_TOKEN"' \
+            "echo '    token_env: ORG_COST_API_CLIENT_SLACK_BOT'"; do
+            grep -qF -- "$want" <<<"$out" || { echo "::error::rendered chart is missing: $want"; exit 1; }
+          done
+          # Without apiClients, autoConfig output is unchanged (no auth lines).
+          if helm template t "$CHART" --set autoConfig.enabled=true --set autoConfig.payerAccountId=123456789012 --set apiToken=x | grep -q 'api_token_env'; then
+            echo "::error::autoConfig without apiClients must not change auth"; exit 1
+          fi
+
   docker:
     runs-on: ubuntu-latest
     steps:

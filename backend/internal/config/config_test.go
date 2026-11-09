@@ -146,3 +146,41 @@ accounts: []
 		t.Fatalf("expected default demo accounts, got %d", len(cfg2.Accounts))
 	}
 }
+
+func TestResolveAPIClients(t *testing.T) {
+	t.Setenv("TOK_A", "aaa")
+	t.Setenv("TOK_B", "bbb")
+	t.Setenv("TOK_LEGACY", "legacy")
+	cfg := &Config{
+		APITokenEnv: "TOK_LEGACY",
+		APIClients: []APIClientConfig{
+			{Name: "backstage", TokenEnv: "TOK_A"},
+			{Name: "slack-bot", TokenEnv: "TOK_B"},
+		},
+	}
+	got, err := cfg.ResolveAPIClients()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 3 || got[0].Name != LegacyAPIClientName || got[0].Token != "legacy" || got[1].Name != "backstage" || got[2].Token != "bbb" {
+		t.Fatalf("unexpected clients: %+v", got)
+	}
+}
+
+func TestResolveAPIClientsFailsClosed(t *testing.T) {
+	t.Setenv("TOK_A", "same")
+	t.Setenv("TOK_B", "same")
+	cases := map[string]Config{
+		"missing name":    {APIClients: []APIClientConfig{{TokenEnv: "TOK_A"}}},
+		"no token source": {APIClients: []APIClientConfig{{Name: "x"}}},
+		"empty env":       {APIClients: []APIClientConfig{{Name: "x", TokenEnv: "TOK_UNSET_FOR_TEST"}}},
+		"duplicate name":  {APIClients: []APIClientConfig{{Name: "x", Token: "1"}, {Name: "x", Token: "2"}}},
+		"shared token":    {APIClients: []APIClientConfig{{Name: "a", TokenEnv: "TOK_A"}, {Name: "b", TokenEnv: "TOK_B"}}},
+	}
+	for name, cfg := range cases {
+		cfg := cfg
+		if _, err := cfg.ResolveAPIClients(); err == nil {
+			t.Errorf("%s: expected error", name)
+		}
+	}
+}
