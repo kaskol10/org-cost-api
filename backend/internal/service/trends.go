@@ -24,6 +24,11 @@ type ReportResponse struct {
 	Forecast *analysis.ForecastResult `json:"forecast,omitempty"`
 	// Budgets compares the projection to configured budgets.
 	Budgets []*analysis.BudgetStatus `json:"budgets,omitempty"`
+	// Highlights are the headline billing cards (spend, trend, waste, savings…)
+	// shown by the UI, computed server-side so every client gets the same set.
+	Highlights []analysis.Highlight `json:"highlights"`
+	// Headline is a rule-based one-sentence summary of the period.
+	Headline string `json:"headline,omitempty"`
 }
 
 // Trends returns period-over-period service spend changes with minimal CE usage.
@@ -329,6 +334,13 @@ func toDashboardView(dash *DashboardResponse) analysis.DashboardView {
 				AvailableCount: acct.Volumes.AvailableCount,
 				AvailableGiB:   acct.Volumes.AvailableGiB,
 				TotalGiB:       acct.Volumes.TotalGiB,
+			}
+			for _, t := range acct.Volumes.AvailableByType {
+				av.Volumes.AvailableByType = append(av.Volumes.AvailableByType, analysis.VolumeTypeView{
+					VolumeType: t.VolumeType,
+					Count:      t.Count,
+					SizeGiB:    t.SizeGiB,
+				})
 			}
 		}
 		view.Accounts = append(view.Accounts, av)

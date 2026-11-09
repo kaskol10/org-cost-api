@@ -8,10 +8,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- API computes what the web UI used to compute client-side, so third-party clients get the same numbers (additive; no existing field changed):
+  - `report.highlights[]` and `report.headline` (rule-based one-sentence summary)
+  - `dashboard.org_daily` and `dashboard.org_ec2_other_daily` (daily series summed across accounts)
+  - `totals.volume_available_est_monthly_usd`, `totals.volume_available_by_type[]`, `totals.volume_available_pricing_basis`, and per-account `unattached_ebs_est_monthly_usd`
+- `GET /api/dashboard` accepts the optional `period` query parameter (`30d` | `mtd`); omitting it keeps the 30d default
 - Publish Helm chart `org-cost-api` to GHCR (`oci://ghcr.io/kaskol10/org-cost-api/charts`) on `v*` tags
 
 ### Changed
 
+- Unattached EBS waste is priced per volume type (gp2, gp3, io1/io2, st1, sc1, standard list prices) instead of a flat gp3 $0.08/GiB-month, in suggestions, Ask answers, the UI and the MCP `get_waste_signals` tool. Volumes without a type breakdown still use the gp3 rate
+- Web UI and MCP prefer the server-computed fields above and fall back to the old client-side logic against older APIs
 - Split `onboard-iam.sh` into `deploy` (IRSA) and `payer` (StackSet + management OrgCostReadOnly) so each side can run with only its own credentials
 - Optional `--name-prefix` / CloudFormation `NamePrefix` for customer-scoped IAM role, policy, and stack names
 - Prod UI chat is same-origin (`VITE_CHAT_URL=same-origin`): the browser calls `/v1/chat` on the current hostname instead of a baked chat URL

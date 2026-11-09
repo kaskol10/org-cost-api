@@ -60,6 +60,8 @@ type VolumeView struct {
 	AvailableCount int
 	AvailableGiB   float64
 	TotalGiB       float64
+	// AvailableByType is the unattached-volume breakdown by EBS type (optional).
+	AvailableByType []VolumeTypeView
 }
 
 type TotalsView struct {

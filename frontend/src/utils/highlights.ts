@@ -3,6 +3,7 @@ import type {
   BudgetStatus,
   DashboardResponse,
   ForecastResult,
+  ServerHighlight,
   SuggestionsResponse,
   TrendsResponse,
 } from "../types";
@@ -28,6 +29,22 @@ export interface BillingHighlight {
   askQuestion: string;
 }
 
+/** Map API highlights (snake_case) to the UI shape. */
+export function fromServerHighlights(items: ServerHighlight[]): BillingHighlight[] {
+  return items.map((h) => ({
+    id: h.id,
+    kind: h.kind,
+    title: h.title,
+    value: h.value,
+    detail: h.detail,
+    askQuestion: h.ask_question,
+  }));
+}
+
+/**
+ * Fallback for APIs that predate server-side highlights (`report.highlights`).
+ * Keep in sync with backend/internal/analysis/highlights.go.
+ */
 export function buildBillingHighlights(
   dashboard: DashboardResponse | null,
   trends: TrendsResponse | null,
@@ -112,7 +129,7 @@ export function buildBillingHighlights(
 
   if ((totals.volume_available_count ?? 0) > 0) {
     const gib = totals.volume_available_gib ?? 0;
-    const est = gib * 0.08;
+    const est = totals.volume_available_est_monthly_usd ?? gib * 0.08;
     items.push({
       id: "ebs-waste",
       kind: "waste",

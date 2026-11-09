@@ -256,7 +256,7 @@ func FormatWasteAnswer(dash DashboardView) string {
 		fmt.Fprintf(&b, "- %s: %d volumes (%.0f GiB unattached)\n", r.name, r.count, r.gib)
 	}
 	est := estimateUnattachedEBSMonthly(dash)
-	fmt.Fprintf(&b, "\nEstimated unattached EBS cost: ~$%.0f/month (gp3 ballpark).\n", est)
+	fmt.Fprintf(&b, "\nEstimated unattached EBS cost: ~$%.0f/month (storage list price by volume type).\n", est)
 	return b.String()
 }
 

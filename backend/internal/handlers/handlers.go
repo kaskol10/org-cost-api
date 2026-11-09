@@ -64,9 +64,15 @@ func (a *API) dashboard(w http.ResponseWriter, r *http.Request) {
 		err  error
 	)
 	force := refresh != "" && refresh != "0" && refresh != "false"
-	if force {
+	// period is optional; omitting it keeps the original behaviour (30d lookback)
+	// so existing clients are unaffected.
+	period := strings.TrimSpace(r.URL.Query().Get("period"))
+	switch {
+	case period != "":
+		data, err = a.agg.DashboardForPeriod(ctx, force, period)
+	case force:
 		data, err = a.agg.DashboardFresh(ctx)
-	} else {
+	default:
 		data, err = a.agg.Dashboard(ctx)
 	}
 	if err != nil {

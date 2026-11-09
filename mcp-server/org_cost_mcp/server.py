@@ -282,7 +282,10 @@ def get_waste_signals(refresh: bool = False) -> str:
     totals = data.get("totals") or {}
     by_account: list[dict[str, Any]] = []
     account_distribution: list[dict[str, Any]] = []
+    # Fallback only: newer APIs price unattached volumes per EBS type
+    # (unattached_ebs_est_monthly_usd / volume_available_est_monthly_usd).
     gib_per_month = 0.08  # gp3 ballpark USD/GiB-month
+    server_priced = "volume_available_est_monthly_usd" in totals
 
     for acct in data.get("accounts") or []:
         vols = acct.get("volumes") or {}
@@ -290,7 +293,10 @@ def get_waste_signals(refresh: bool = False) -> str:
         avail = int(vols.get("available_count") or 0)
         avail_gib = float(vols.get("available_gib") or 0)
         if avail > 0 or (snaps.get("count") or 0) > 0:
-            est_monthly = round(avail_gib * gib_per_month, 2)
+            if server_priced:
+                est_monthly = round(float(acct.get("unattached_ebs_est_monthly_usd") or 0), 2)
+            else:
+                est_monthly = round(avail_gib * gib_per_month, 2)
             row = {
                 "account_name": acct.get("account_name"),
                 "account_id": acct.get("account_id"),
@@ -320,7 +326,12 @@ def get_waste_signals(refresh: bool = False) -> str:
     org_avail_gib = float(totals.get("volume_available_gib") or 0)
     guidance = [
         "storage_gib / unattached_ebs_gib = provisioned size of available (unattached) volumes only.",
-        "estimated_monthly_usd uses ~$0.08/GiB-month (gp3 ballpark); actual varies by volume type/region.",
+        (
+            "estimated_monthly_usd is priced per EBS volume type (list price, storage only; "
+            "excludes provisioned IOPS/throughput and regional differences)."
+            if server_priced
+            else "estimated_monthly_usd uses ~$0.08/GiB-month (gp3 ballpark); actual varies by volume type/region."
+        ),
         "Unattached EBS (available) are strong delete/attach candidates — verify in console.",
         "Use get_account_costs + get_service_detail for spend drivers, not just inventory.",
     ]
@@ -330,7 +341,11 @@ def get_waste_signals(refresh: bool = False) -> str:
         "organization": {
             "unattached_ebs_disks": totals.get("volume_available_count"),
             "unattached_ebs_gib": org_avail_gib,
-            "estimated_unattached_monthly_usd": round(org_avail_gib * gib_per_month, 2),
+            "estimated_unattached_monthly_usd": (
+                round(float(totals.get("volume_available_est_monthly_usd") or 0), 2)
+                if server_priced
+                else round(org_avail_gib * gib_per_month, 2)
+            ),
             "ebs_disk_count": totals.get("volume_count"),
             "ebs_disk_gib": totals.get("volume_size_gib"),
             "snapshot_count": totals.get("snapshot_count"),
