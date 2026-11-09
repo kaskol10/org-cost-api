@@ -8,6 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Per-integration API tokens: `api_clients` in config (Helm: `apiClients`). Each client is named in a new one-line access log (`api_request client=…`), can be revoked on its own, and has its own refresh budget. The legacy `api_token` keeps working as client "default"
+- `?refresh=1` no longer locks other clients out: the limit is one forced fetch per client per 5 minutes, and a refresh of data another client just refreshed is answered from that data (`X-Refresh-Coalesced: true`) without a new Cost Explorer call
+- CI lints and renders the Helm chart
+
 - Versioned API: every route is served under `/api/v1/...`; the unversioned `/api/...` paths remain a permanent alias, so existing integrations keep working. `openapi.yaml` now documents `/api/v1` (`info.version` 1.0.0) and states the v1 compatibility rule (additive changes only)
 - Test that fails CI when `openapi.yaml` and the server's registered routes differ
 - Frontend types generated from `openapi.yaml` (`npm run gen:api` → `src/generated/openapi.ts`); API calls are type-checked against the spec, and CI fails if the generated file is stale

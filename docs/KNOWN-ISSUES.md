@@ -17,7 +17,8 @@ Honest list for contributors and self-hosters. Demo/public-sharing gaps are bein
 ## AWS integration
 
 - AWS clients are created **at boot** — expired SSO sessions require a process restart.
-- Force `?refresh=1` on dashboard/report is rate-limited in-process to **once per 5 minutes** (HTTP 429). `POST /api/ask` with `refresh: true` is not covered by that limiter.
+- Force `?refresh=1` on dashboard/report is limited in-process to **one forced fetch per API client per 5 minutes** (HTTP 429); a refresh of data another client just refreshed is served from that data (`X-Refresh-Coalesced: true`). Limits are per process, not shared across replicas. With auth disabled all callers share the "anonymous" client. `POST /api/ask` with `refresh: true` is not covered by that limiter.
+- Helm `autoConfig`: setting `apiToken` / `existingSecret` alone passes the token to the MCP, chat and warm-cache pods but does **not** enable auth on the API (the generated config has no `api_token_env`). Auth is enforced with `autoConfig` only when `apiClients` is set.
 - Readiness may not re-probe all member accounts when billing profile is configured (member-only path probes `accounts[0]`).
 
 ## API contract
@@ -29,7 +30,7 @@ Honest list for contributors and self-hosters. Demo/public-sharing gaps are bein
 
 - History snapshots are plain JSON files — no built-in backup/restore (see [migration.md](./migration.md) for manual copy).
 - Docker `HEALTHCHECK` on `:prod` / `:demo` images uses `/api/ready` (readiness). The `:api` image (API-only) still uses `/api/health` for liveness-only deployments.
-- No Prometheus metrics or structured request logging yet.
+- No Prometheus metrics yet. API requests are logged one line each (`api_request client=… method=… path=… status=… duration_ms=…`).
 
 ## Frontend
 

@@ -107,6 +107,25 @@ Authorization: Bearer <token>
 | **Liveness probe** | No token | `GET /api/health` — process up |
 | **Readiness probe** | No token | `GET /api/ready` — accounts loaded; optional billing STS. `billing_check: skipped` means no payer configured; member-only setups re-STS `accounts[0]` and set `accounts_check` (`ok` / `failed`). Use health for liveness and ready for readiness in Kubernetes/LB. |
 
+### One token per integration
+
+Give each third-party app (Backstage, a Slack bot, FinOps scripts…) its own token instead of sharing one:
+
+```yaml
+api_token_env: ORG_COST_API_TOKEN      # optional; becomes client "default"
+api_clients:
+  - name: backstage
+    token_env: ORG_COST_TOKEN_BACKSTAGE
+  - name: slack-bot
+    token_env: ORG_COST_TOKEN_SLACK_BOT
+```
+
+- **Attribution:** every API request logs `api_request client=<name> method=… path=… status=…` (tokens are never logged).
+- **Revocation:** remove one client (or rotate its env var) without touching the others.
+- **Refresh limits are per client:** `?refresh=1` allows one forced Cost Explorer fetch per client per 5 minutes (429 + `Retry-After` beyond that). If another client just refreshed the same data, the request gets that fresh data instead (200 + `X-Refresh-Coalesced: true`), so one integration can't lock the UI out.
+- Startup fails if a client has no token, two clients share a name, or two clients share a token.
+- Helm: set `apiClients` (see `values.yaml`).
+
 **CORS:** Set `cors_origin` in config to your frontend origin (e.g. `https://costs.internal.example.com`). Default `http://localhost:5173` is for local dev only.
 
 **Browser-only users:** See [browser-users.md](./browser-users.md).

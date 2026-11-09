@@ -195,10 +195,13 @@ func (a *Aggregator) dashboardLite(ctx context.Context, force bool, mode appconf
 	key := a.liteCacheKey(mode)
 
 	if force {
-		if err := a.allowForceRefresh(); err != nil {
+		coalesce, err := a.allowForceRefresh(ctx, key)
+		if err != nil {
 			return nil, "miss", 0, err
 		}
-		if a.history != nil {
+		if coalesce {
+			force = false // serve the lite dashboard another client just rebuilt
+		} else if a.history != nil {
 			_ = a.history.DeleteDashboardCache(key)
 		}
 	}

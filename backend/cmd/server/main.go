@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -49,16 +50,24 @@ func main() {
 		log.Print("No cost history yet — run the dashboard once daily (or call get_org_summary) to enable free prior-period trends.")
 	}
 
-	apiToken := ""
+	var clients []handlers.APIClient
 	if !cfg.Demo {
-		apiToken = cfg.ResolveAPIToken()
-		if apiToken != "" {
-			log.Print("API bearer token auth enabled for /api/* routes (except /api/health and /api/ready)")
+		resolved, err := cfg.ResolveAPIClients()
+		if err != nil {
+			log.Fatalf("api clients: %v", err)
+		}
+		names := make([]string, 0, len(resolved))
+		for _, c := range resolved {
+			clients = append(clients, handlers.APIClient{Name: c.Name, Token: c.Token})
+			names = append(names, c.Name)
+		}
+		if len(clients) > 0 {
+			log.Printf("API bearer token auth enabled for %d client(s): %s (health, ready and meta stay public)", len(clients), strings.Join(names, ", "))
 		}
 	}
 
 	staticDir := os.Getenv("STATIC_DIR")
-	api := handlers.New(agg, cfg.CORSOrigin, apiToken)
+	api := handlers.NewWithClients(agg, cfg.CORSOrigin, clients)
 	handler := api.Routes(staticDir)
 
 	srv := &http.Server{

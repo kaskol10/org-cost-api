@@ -94,3 +94,10 @@ app.kubernetes.io/component: mcp
 {{- join "," $origins }}
 {{- end }}
 {{- end }}
+
+{{/*
+Env var holding an API client's token: ORG_COST_API_CLIENT_<NAME>.
+*/}}
+{{- define "org-cost-api.clientTokenEnv" -}}
+ORG_COST_API_CLIENT_{{ . | upper | replace "-" "_" | replace "." "_" }}
+{{- end }}

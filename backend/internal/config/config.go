@@ -88,8 +88,13 @@ type Config struct {
 	// Persisted under history_dir/dashboard-cache/ so pods share warm results via PVC.
 	DashboardCacheHours int `yaml:"dashboard_cache_hours,omitempty"`
 	// APIToken optionally protects /api/* routes (prefer api_token_env).
+	// It acts as a client named "default"; prefer api_clients for integrations.
 	APIToken    string `yaml:"api_token,omitempty"`
 	APITokenEnv string `yaml:"api_token_env,omitempty"`
+	// APIClients gives each integration (web UI, Backstage, a Slack bot…) its
+	// own bearer token, so requests are attributed per client, tokens can be
+	// rotated or revoked one at a time, and refresh limits apply per client.
+	APIClients []APIClientConfig `yaml:"api_clients,omitempty"`
 	CUR            *CURConfig `yaml:"cur,omitempty"`
 	// Budgets are monthly spend budgets for over-budget detection (see Budget).
 	Budgets []Budget `yaml:"budgets,omitempty"`
@@ -149,6 +154,9 @@ func Load(path string) (*Config, error) {
 		}
 	}
 	if err := validateAPIToken(&cfg); err != nil {
+		return nil, err
+	}
+	if _, err := cfg.ResolveAPIClients(); err != nil {
 		return nil, err
 	}
 	if dir := strings.TrimSpace(os.Getenv("HISTORY_DIR")); dir != "" {
@@ -216,4 +224,67 @@ func (c *Config) ResolveAPIToken() string {
 		return strings.TrimSpace(os.Getenv(env))
 	}
 	return ""
+}
+
+// APIClientConfig is one named API client. Set token_env (recommended) or token.
+type APIClientConfig struct {
+	Name     string `yaml:"name"`
+	TokenEnv string `yaml:"token_env,omitempty"`
+	Token    string `yaml:"token,omitempty"`
+}
+
+// NamedToken is a resolved API client credential.
+type NamedToken struct {
+	Name  string
+	Token string
+}
+
+// LegacyAPIClientName names the client authenticated by api_token / api_token_env.
+const LegacyAPIClientName = "default"
+
+// ResolveAPIClients returns every configured client token: the legacy
+// api_token (as "default") plus api_clients. It fails closed on a missing
+// token, a duplicate name, or two clients sharing a token.
+func (c *Config) ResolveAPIClients() ([]NamedToken, error) {
+	var out []NamedToken
+	names := map[string]bool{}
+	tokens := map[string]string{}
+	add := func(name, token string) error {
+		if names[name] {
+			return fmt.Errorf("api_clients: duplicate client name %q", name)
+		}
+		if other, ok := tokens[token]; ok {
+			return fmt.Errorf("api_clients: clients %q and %q share the same token", other, name)
+		}
+		names[name] = true
+		tokens[token] = name
+		out = append(out, NamedToken{Name: name, Token: token})
+		return nil
+	}
+	if legacy := c.ResolveAPIToken(); legacy != "" {
+		if err := add(LegacyAPIClientName, legacy); err != nil {
+			return nil, err
+		}
+	}
+	for i, cl := range c.APIClients {
+		name := strings.TrimSpace(cl.Name)
+		if name == "" {
+			return nil, fmt.Errorf("api_clients[%d]: name is required", i)
+		}
+		token := strings.TrimSpace(cl.Token)
+		if token == "" {
+			env := strings.TrimSpace(cl.TokenEnv)
+			if env == "" {
+				return nil, fmt.Errorf("api_clients[%d] (%s): set token_env or token", i, name)
+			}
+			token = strings.TrimSpace(os.Getenv(env))
+			if token == "" {
+				return nil, fmt.Errorf("api_clients[%d] (%s): token_env %q is set but the environment variable is empty", i, name, env)
+			}
+		}
+		if err := add(name, token); err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
 }

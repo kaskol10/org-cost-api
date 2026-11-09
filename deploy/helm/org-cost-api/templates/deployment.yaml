@@ -104,6 +104,13 @@ spec:
                   name: {{ default (printf "%s-token" (include "org-cost-api.fullname" .)) .Values.existingSecret }}
                   key: {{ default "ORG_COST_API_TOKEN" .Values.existingSecretKey }}
             {{- end }}
+            {{- range .Values.apiClients }}
+            - name: {{ include "org-cost-api.clientTokenEnv" (required "apiClients[].name is required" .name) }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required (printf "apiClients[%s].existingSecret is required" .name) .existingSecret }}
+                  key: {{ default "token" .existingSecretKey }}
+            {{- end }}
           {{- with .Values.livenessProbe }}
           livenessProbe:
             {{- toYaml . | nindent 12 }}

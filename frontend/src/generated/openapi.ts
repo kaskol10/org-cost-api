@@ -182,7 +182,7 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
-                    /** @description Force live AWS Cost Explorer fetch. Truthy when set to "1", "true", or any value except "0", "false", or empty (uses cache when available). Rate-limited to once per 5 minutes globally (HTTP 429). */
+                    /** @description Force live AWS Cost Explorer fetch. Truthy when set to "1", "true", or any value except "0", "false", or empty (uses cache when available). Limited to one forced fetch per client per 5 minutes (HTTP 429 with Retry-After). If another client force-refreshed the same data within that window, the request is answered from that fresh data instead (HTTP 200 with header `X-Refresh-Coalesced: true`), so one integration refreshing never locks the others out. */
                     refresh?: components["parameters"]["refresh"];
                     /** @description Cost window preset. "30d" (default) uses cost_lookback_days trailing window; "mtd" is calendar month-to-date. Prior period is an equal apples-to-apples comparison (immediate prior window for 30d; same days last month for mtd). */
                     period?: components["parameters"]["period"];
@@ -225,7 +225,7 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
-                    /** @description Force live AWS Cost Explorer fetch. Truthy when set to "1", "true", or any value except "0", "false", or empty (uses cache when available). Rate-limited to once per 5 minutes globally (HTTP 429). */
+                    /** @description Force live AWS Cost Explorer fetch. Truthy when set to "1", "true", or any value except "0", "false", or empty (uses cache when available). Limited to one forced fetch per client per 5 minutes (HTTP 429 with Retry-After). If another client force-refreshed the same data within that window, the request is answered from that fresh data instead (HTTP 200 with header `X-Refresh-Coalesced: true`), so one integration refreshing never locks the others out. */
                     refresh?: components["parameters"]["refresh"];
                     /** @description Cost window preset. "30d" (default) uses cost_lookback_days trailing window; "mtd" is calendar month-to-date. Prior period is an equal apples-to-apples comparison (immediate prior window for 30d; same days last month for mtd). */
                     period?: components["parameters"]["period"];
@@ -269,7 +269,7 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
-                    /** @description Force live AWS Cost Explorer fetch. Truthy when set to "1", "true", or any value except "0", "false", or empty (uses cache when available). Rate-limited to once per 5 minutes globally (HTTP 429). */
+                    /** @description Force live AWS Cost Explorer fetch. Truthy when set to "1", "true", or any value except "0", "false", or empty (uses cache when available). Limited to one forced fetch per client per 5 minutes (HTTP 429 with Retry-After). If another client force-refreshed the same data within that window, the request is answered from that fresh data instead (HTTP 200 with header `X-Refresh-Coalesced: true`), so one integration refreshing never locks the others out. */
                     refresh?: components["parameters"]["refresh"];
                     /** @description Cost window preset. "30d" (default) uses cost_lookback_days trailing window; "mtd" is calendar month-to-date. Prior period is an equal apples-to-apples comparison (immediate prior window for 30d; same days last month for mtd). */
                     period?: components["parameters"]["period"];
@@ -313,7 +313,7 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
-                    /** @description Force live AWS Cost Explorer fetch. Truthy when set to "1", "true", or any value except "0", "false", or empty (uses cache when available). Rate-limited to once per 5 minutes globally (HTTP 429). */
+                    /** @description Force live AWS Cost Explorer fetch. Truthy when set to "1", "true", or any value except "0", "false", or empty (uses cache when available). Limited to one forced fetch per client per 5 minutes (HTTP 429 with Retry-After). If another client force-refreshed the same data within that window, the request is answered from that fresh data instead (HTTP 200 with header `X-Refresh-Coalesced: true`), so one integration refreshing never locks the others out. */
                     refresh?: components["parameters"]["refresh"];
                     /** @description Cost window preset. "30d" (default) uses cost_lookback_days trailing window; "mtd" is calendar month-to-date. Prior period is an equal apples-to-apples comparison (immediate prior window for 30d; same days last month for mtd). */
                     period?: components["parameters"]["period"];
@@ -337,7 +337,7 @@ export interface paths {
                 };
                 400: components["responses"]["BadRequest"];
                 401: components["responses"]["Unauthorized"];
-                /** @description Force refresh rate limited (once per 5 minutes) */
+                /** @description This client already forced a refresh in the last 5 minutes (see Retry-After) */
                 429: {
                     headers: {
                         [name: string]: unknown;
@@ -370,7 +370,7 @@ export interface paths {
                 query: {
                     /** @description Account name or 12-digit account id */
                     account: string;
-                    /** @description Force live AWS Cost Explorer fetch. Truthy when set to "1", "true", or any value except "0", "false", or empty (uses cache when available). Rate-limited to once per 5 minutes globally (HTTP 429). */
+                    /** @description Force live AWS Cost Explorer fetch. Truthy when set to "1", "true", or any value except "0", "false", or empty (uses cache when available). Limited to one forced fetch per client per 5 minutes (HTTP 429 with Retry-After). If another client force-refreshed the same data within that window, the request is answered from that fresh data instead (HTTP 200 with header `X-Refresh-Coalesced: true`), so one integration refreshing never locks the others out. */
                     refresh?: components["parameters"]["refresh"];
                 };
                 header?: never;
@@ -1037,7 +1037,7 @@ export interface components {
         };
     };
     parameters: {
-        /** @description Force live AWS Cost Explorer fetch. Truthy when set to "1", "true", or any value except "0", "false", or empty (uses cache when available). Rate-limited to once per 5 minutes globally (HTTP 429). */
+        /** @description Force live AWS Cost Explorer fetch. Truthy when set to "1", "true", or any value except "0", "false", or empty (uses cache when available). Limited to one forced fetch per client per 5 minutes (HTTP 429 with Retry-After). If another client force-refreshed the same data within that window, the request is answered from that fresh data instead (HTTP 200 with header `X-Refresh-Coalesced: true`), so one integration refreshing never locks the others out. */
         refresh: string;
         /** @description Cost window preset. "30d" (default) uses cost_lookback_days trailing window; "mtd" is calendar month-to-date. Prior period is an equal apples-to-apples comparison (immediate prior window for 30d; same days last month for mtd). */
         period: "30d" | "mtd" | "lookback";

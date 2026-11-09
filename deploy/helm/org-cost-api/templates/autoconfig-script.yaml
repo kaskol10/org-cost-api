@@ -66,6 +66,19 @@ data:
       echo "dashboard_cache_hours: ${DASH_CACHE_HOURS}"
       echo "billing_profile: \"\""
       echo "billing_role_arn: \"${PAYER_ROLE_ARN}\""
+{{- if .Values.apiClients }}
+      # Setting apiClients turns on API auth in the generated config. The
+      # chart token (if any) stays valid as client "default" so the in-cluster
+      # MCP / chat / warm-cache pods, which send ORG_COST_API_TOKEN, keep working.
+{{- if or .Values.apiToken .Values.existingSecret }}
+      echo "api_token_env: ORG_COST_API_TOKEN"
+{{- end }}
+      echo "api_clients:"
+{{- range .Values.apiClients }}
+      echo '  - name: "{{ required "apiClients[].name is required" .name }}"'
+      echo '    token_env: {{ include "org-cost-api.clientTokenEnv" .name }}'
+{{- end }}
+{{- end }}
       echo ""
       echo "accounts:"
     } > "$TMP"
