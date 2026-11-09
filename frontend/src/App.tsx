@@ -11,9 +11,9 @@ import SpikesPanel from "./components/SpikesPanel";
 import SuggestionsPanel from "./components/SuggestionsPanel";
 import SummaryDashboard from "./components/SummaryDashboard";
 import VgpuBackground from "./components/VgpuBackground";
-import { buildBillingHighlights } from "./utils/highlights";
+import { buildBillingHighlights, fromServerHighlights } from "./utils/highlights";
 import { formatCurrency, formatSignedCurrency } from "./utils/format";
-import type { BudgetStatus, DashboardResponse, DailyCost, ForecastResult, ReportResponse, SuggestionsResponse, TrendsResponse } from "./types";
+import type { BudgetStatus, DashboardResponse, DailyCost, ForecastResult, ReportResponse, ServerHighlight, SuggestionsResponse, TrendsResponse } from "./types";
 
 type Tab = "ask" | "explore";
 
@@ -45,6 +45,7 @@ export default function App() {
   const [suggestions, setSuggestions] = useState<SuggestionsResponse | null>(null);
   const [forecast, setForecast] = useState<ForecastResult | null>(null);
   const [budgets, setBudgets] = useState<BudgetStatus[] | null>(null);
+  const [serverHighlights, setServerHighlights] = useState<ServerHighlight[] | null>(null);
   const [enrichingSuggestions, setEnrichingSuggestions] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [authError, setAuthError] = useState(false);
@@ -90,6 +91,7 @@ export default function App() {
       setTrends(report.trends);
       setForecast(report.forecast ?? null);
       setBudgets(report.budgets ?? null);
+      setServerHighlights(report.highlights ?? null);
       setLoading(false);
       await applySuggestions(report, false);
     } catch (e) {
@@ -112,6 +114,7 @@ export default function App() {
       setTrends(report.trends);
       setForecast(report.forecast ?? null);
       setBudgets(report.budgets ?? null);
+      setServerHighlights(report.highlights ?? null);
       setLoading(false);
       await applySuggestions(report, true);
     } catch (e) {
@@ -128,23 +131,29 @@ export default function App() {
     load();
   }, [load]);
 
-  const consolidatedOrgDaily = useMemo(
-    () => (Array.isArray(data?.accounts) && data.accounts.length ? mergeDaily(data.accounts, "all_daily") : []),
-    [data]
-  );
+  // Prefer server-computed series; fall back to merging client-side for older APIs.
+  const consolidatedOrgDaily = useMemo(() => {
+    if (Array.isArray(data?.org_daily)) return data.org_daily;
+    return Array.isArray(data?.accounts) && data.accounts.length ? mergeDaily(data.accounts, "all_daily") : [];
+  }, [data]);
 
-  const consolidatedEC2Daily = useMemo(
-    () => (Array.isArray(data?.accounts) && data.accounts.length ? mergeDaily(data.accounts, "daily") : []),
-    [data]
-  );
+  const consolidatedEC2Daily = useMemo(() => {
+    if (Array.isArray(data?.org_ec2_other_daily)) return data.org_ec2_other_daily;
+    return Array.isArray(data?.accounts) && data.accounts.length ? mergeDaily(data.accounts, "daily") : [];
+  }, [data]);
 
   const dateRange =
     data &&
     `${new Date(data.start + "T00:00:00").toLocaleDateString()} – ${new Date(data.end + "T00:00:00").toLocaleDateString()}`;
 
+  // Server-computed highlights keep the UI consistent with MCP and other API
+  // consumers; the client-side builder is only a fallback for older APIs.
   const highlights = useMemo(
-    () => buildBillingHighlights(data, trends, suggestions, period, forecast, budgets),
-    [data, trends, suggestions, period, forecast, budgets]
+    () =>
+      serverHighlights && serverHighlights.length > 0
+        ? fromServerHighlights(serverHighlights)
+        : buildBillingHighlights(data, trends, suggestions, period, forecast, budgets),
+    [serverHighlights, data, trends, suggestions, period, forecast, budgets]
   );
 
   const topAccountsBySpend = useMemo(() => {

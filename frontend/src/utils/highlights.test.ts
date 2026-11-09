@@ -106,3 +106,24 @@ describe("buildBillingHighlights", () => {
     expect(items.some((h) => h.id === "org-trend")).toBe(false);
   });
 });
+
+describe("fromServerHighlights", () => {
+  it("maps snake_case API highlights to the UI shape", async () => {
+    const { fromServerHighlights } = await import("./highlights");
+    const items = fromServerHighlights([
+      { id: "org-spend", kind: "spend", title: "Org spend", value: "$1.00", detail: "d", ask_question: "q?" },
+    ]);
+    expect(items).toEqual([
+      { id: "org-spend", kind: "spend", title: "Org spend", value: "$1.00", detail: "d", askQuestion: "q?" },
+    ]);
+  });
+
+  it("fallback builder prefers the server per-type EBS estimate", () => {
+    const dash = {
+      ...DASHBOARD,
+      totals: { ...DASHBOARD.totals, volume_available_count: 2, volume_available_gib: 100, volume_available_est_monthly_usd: 12.5 },
+    };
+    const waste = buildBillingHighlights(dash, null, null).find((h) => h.id === "ebs-waste");
+    expect(waste?.detail).toContain("$12.50");
+  });
+});

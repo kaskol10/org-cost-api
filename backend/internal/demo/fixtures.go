@@ -65,7 +65,7 @@ func DashboardForRange(cfg *appconfig.Config, start, end string) *service.Dashbo
 				{Service: "Amazon Simple Storage Service", Amount: 6100},
 				{Service: "EC2 - Other", Amount: 4800},
 			},
-			volumes: &ec2volumes.Inventory{Count: 240, AvailableCount: 2, AvailableGiB: 80, TotalGiB: 4800},
+			volumes: &ec2volumes.Inventory{Count: 240, AvailableCount: 2, AvailableGiB: 80, TotalGiB: 4800, AvailableByType: []ec2volumes.TypeBreakdown{{VolumeType: "gp3", Count: 2, SizeGiB: 80}}},
 			snaps:   &ec2snapshots.SnapshotSummary{Count: 890, TotalSizeGiB: 12000},
 		},
 		{
@@ -76,7 +76,7 @@ func DashboardForRange(cfg *appconfig.Config, start, end string) *service.Dashbo
 				{Service: "AmazonCloudWatch", Amount: 1900},
 				{Service: "EC2 - Other", Amount: 1500},
 			},
-			volumes: &ec2volumes.Inventory{Count: 68, AvailableCount: 5, AvailableGiB: 250, TotalGiB: 920},
+			volumes: &ec2volumes.Inventory{Count: 68, AvailableCount: 5, AvailableGiB: 250, TotalGiB: 920, AvailableByType: []ec2volumes.TypeBreakdown{{VolumeType: "gp2", Count: 3, SizeGiB: 150}, {VolumeType: "io1", Count: 2, SizeGiB: 100}}},
 			snaps:   &ec2snapshots.SnapshotSummary{Count: 120, TotalSizeGiB: 1800},
 		},
 		{
@@ -97,7 +97,7 @@ func DashboardForRange(cfg *appconfig.Config, start, end string) *service.Dashbo
 				{Service: "Amazon Simple Storage Service", Amount: 600},
 				{Service: "EC2 - Other", Amount: 400},
 			},
-			volumes: &ec2volumes.Inventory{Count: 18, AvailableCount: 1, AvailableGiB: 32, TotalGiB: 180},
+			volumes: &ec2volumes.Inventory{Count: 18, AvailableCount: 1, AvailableGiB: 32, TotalGiB: 180, AvailableByType: []ec2volumes.TypeBreakdown{{VolumeType: "gp3", Count: 1, SizeGiB: 32}}},
 		},
 		{
 			id: "555555555555", name: "legacy", total: 1500,
@@ -106,7 +106,7 @@ func DashboardForRange(cfg *appconfig.Config, start, end string) *service.Dashbo
 				{Service: "EC2 - Other", Amount: 500},
 				{Service: "Amazon Simple Storage Service", Amount: 400},
 			},
-			volumes: &ec2volumes.Inventory{Count: 12, AvailableCount: 3, AvailableGiB: 96, TotalGiB: 240},
+			volumes: &ec2volumes.Inventory{Count: 12, AvailableCount: 3, AvailableGiB: 96, TotalGiB: 240, AvailableByType: []ec2volumes.TypeBreakdown{{VolumeType: "standard", Count: 3, SizeGiB: 96}}},
 			snaps:   &ec2snapshots.SnapshotSummary{Count: 200, TotalSizeGiB: 3200},
 		},
 	}

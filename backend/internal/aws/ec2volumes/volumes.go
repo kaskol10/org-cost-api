@@ -23,6 +23,9 @@ type Inventory struct {
 	AvailableGiB   float64         `json:"available_gib"`   // provisioned size of unattached volumes only
 	TotalGiB       float64         `json:"total_gib"`
 	ByType         []TypeBreakdown `json:"by_type"`
+	// AvailableByType breaks unattached volumes down by EBS type so waste can
+	// be priced per type (io2 costs far more per GiB than sc1).
+	AvailableByType []TypeBreakdown `json:"available_by_type,omitempty"`
 	Usage          *UsageSummary   `json:"usage,omitempty"`
 	ScannedAt      string          `json:"scanned_at,omitempty"`
 }
@@ -30,6 +33,7 @@ type Inventory struct {
 // ListInventory returns EBS volumes and optional filesystem usage (CloudWatch agent).
 func ListInventory(ctx context.Context, client *ec2.Client, cw *cloudwatch.Client) (*Inventory, error) {
 	byType := make(map[string]*TypeBreakdown)
+	availByType := make(map[string]*TypeBreakdown)
 	var totalGiB, availableGiB float64
 	var count, availableCount int
 	var records []volumeRecord
@@ -65,6 +69,14 @@ func ListInventory(ctx context.Context, client *ec2.Client, cw *cloudwatch.Clien
 			} else {
 				byType[vt] = &TypeBreakdown{VolumeType: vt, Count: 1, SizeGiB: gib}
 			}
+			if vol.State == types.VolumeStateAvailable {
+				if b, ok := availByType[vt]; ok {
+					b.Count++
+					b.SizeGiB += gib
+				} else {
+					availByType[vt] = &TypeBreakdown{VolumeType: vt, Count: 1, SizeGiB: gib}
+				}
+			}
 
 			rec := volumeRecord{
 				ID:         aws.ToString(vol.VolumeId),
@@ -85,12 +97,21 @@ func ListInventory(ctx context.Context, client *ec2.Client, cw *cloudwatch.Clien
 	}
 	sort.Slice(breakdown, func(i, j int) bool { return breakdown[i].SizeGiB > breakdown[j].SizeGiB })
 
+	availBreakdown := make([]TypeBreakdown, 0, len(availByType))
+	for _, b := range availByType {
+		availBreakdown = append(availBreakdown, *b)
+	}
+	sort.Slice(availBreakdown, func(i, j int) bool { return availBreakdown[i].SizeGiB > availBreakdown[j].SizeGiB })
+
 	inv := &Inventory{
 		Count:          count,
 		AvailableCount: availableCount,
 		AvailableGiB:   availableGiB,
 		TotalGiB:       totalGiB,
 		ByType:         breakdown,
+	}
+	if len(availBreakdown) > 0 {
+		inv.AvailableByType = availBreakdown
 	}
 	enrichUsage(ctx, inv, records, cw)
 	return inv, nil

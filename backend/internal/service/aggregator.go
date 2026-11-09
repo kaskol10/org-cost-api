@@ -180,6 +180,11 @@ type DashboardResponse struct {
 	Tax *costexplorer.TaxBreakdown `json:"tax,omitempty"`
 	// Commitments summarizes savings-plan / RI coverage (payer CE only).
 	Commitments *costexplorer.CommitmentCoverage `json:"commitments,omitempty"`
+	// OrgDaily is org-wide daily spend (all services, usage) summed across
+	// accounts. Derived at response time; see withDerived.
+	OrgDaily []costexplorer.DailyCost `json:"org_daily,omitempty"`
+	// OrgEC2OtherDaily is daily EC2-Other spend summed across accounts.
+	OrgEC2OtherDaily []costexplorer.DailyCost `json:"org_ec2_other_daily,omitempty"`
 }
 
 type AccountDashboard struct {
@@ -189,6 +194,9 @@ type AccountDashboard struct {
 	Costs       *costexplorer.CostSummary        `json:"costs,omitempty"`
 	Volumes     *ec2volumes.Inventory            `json:"volumes,omitempty"`
 	Snapshots   *ec2snapshots.SnapshotSummary    `json:"snapshots,omitempty"`
+	// UnattachedEBSEstMonthlyUSD prices this account's unattached volumes per
+	// EBS type. Derived at response time; see withDerived.
+	UnattachedEBSEstMonthlyUSD float64 `json:"unattached_ebs_est_monthly_usd,omitempty"`
 }
 
 type ConsolidatedTotals struct {
@@ -205,6 +213,13 @@ type ConsolidatedTotals struct {
 	SnapshotCount     int     `json:"snapshot_count"`
 	SnapshotSizeGiB   float64 `json:"snapshot_size_gib"`
 	AccountCount      int     `json:"account_count"`
+	// VolumeAvailableEstMonthlyUSD is the monthly storage cost of unattached
+	// EBS volumes, priced per volume type. Derived at response time.
+	VolumeAvailableEstMonthlyUSD float64 `json:"volume_available_est_monthly_usd"`
+	// VolumeAvailableByType breaks that estimate down by EBS volume type.
+	VolumeAvailableByType []analysis.EBSTypeCost `json:"volume_available_by_type,omitempty"`
+	// VolumeAvailablePricingBasis explains what the estimate covers.
+	VolumeAvailablePricingBasis string `json:"volume_available_pricing_basis,omitempty"`
 }
 
 type ServiceDetailRequest struct {
@@ -254,11 +269,13 @@ func (a *Aggregator) resolveCostClient(client *awsclient.AccountClients) (*ceapi
 }
 
 func (a *Aggregator) Dashboard(ctx context.Context) (*DashboardResponse, error) {
-	return a.dashboard(ctx, false, appconfig.PeriodLookback)
+	dash, err := a.dashboard(ctx, false, appconfig.PeriodLookback)
+	return withDerived(dash), err
 }
 
 func (a *Aggregator) DashboardFresh(ctx context.Context) (*DashboardResponse, error) {
-	return a.dashboard(ctx, true, appconfig.PeriodLookback)
+	dash, err := a.dashboard(ctx, true, appconfig.PeriodLookback)
+	return withDerived(dash), err
 }
 
 // DashboardForPeriod returns the org dashboard for a period mode (30d or mtd).
@@ -267,7 +284,8 @@ func (a *Aggregator) DashboardForPeriod(ctx context.Context, force bool, period 
 	if err != nil {
 		return nil, err
 	}
-	return a.dashboard(ctx, force, mode)
+	dash, err := a.dashboard(ctx, force, mode)
+	return withDerived(dash), err
 }
 
 func parsePeriodMode(period string) (appconfig.PeriodMode, error) {

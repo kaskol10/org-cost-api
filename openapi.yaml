@@ -80,8 +80,12 @@ paths:
   /api/dashboard:
     get:
       summary: Organization dashboard
+      description: >
+        `period` is optional; when omitted the default 30d lookback is used
+        (unchanged behaviour). Invalid values return 400.
       parameters:
         - $ref: "#/components/parameters/refresh"
+        - $ref: "#/components/parameters/period"
       responses:
         "200":
           description: Dashboard payload
@@ -515,6 +519,33 @@ components:
           type: number
         account_count:
           type: integer
+        volume_available_est_monthly_usd:
+          type: number
+          description: >
+            Monthly storage cost of unattached EBS volumes, priced per volume type
+            (AWS list price, storage only). Prefer this over computing
+            volume_available_gib x a flat rate.
+        volume_available_by_type:
+          type: array
+          items:
+            $ref: "#/components/schemas/EBSTypeCost"
+        volume_available_pricing_basis:
+          type: string
+          description: What the unattached-EBS estimate covers (show next to the number).
+    EBSTypeCost:
+      type: object
+      description: Unattached EBS volumes of one type and their estimated monthly storage cost. volume_type "unknown" covers volumes without a type breakdown, priced at the gp3 rate.
+      properties:
+        volume_type:
+          type: string
+        count:
+          type: integer
+        size_gib:
+          type: number
+        price_per_gib_month:
+          type: number
+        estimated_monthly_usd:
+          type: number
     AccountDashboard:
       type: object
       properties:
@@ -533,6 +564,9 @@ components:
         snapshots:
           type: object
           additionalProperties: true
+        unattached_ebs_est_monthly_usd:
+          type: number
+          description: This account's unattached EBS volumes priced per volume type (omitted when zero).
     DashboardResponse:
       type: object
       properties:
@@ -569,6 +603,16 @@ components:
           $ref: "#/components/schemas/TaxBreakdown"
         commitments:
           $ref: "#/components/schemas/CommitmentCoverage"
+        org_daily:
+          type: array
+          description: Org-wide daily spend (all services, usage) summed across accounts. Use this instead of merging accounts[].costs.all_daily client-side.
+          items:
+            $ref: "#/components/schemas/DailyCost"
+        org_ec2_other_daily:
+          type: array
+          description: Daily EC2-Other spend summed across accounts.
+          items:
+            $ref: "#/components/schemas/DailyCost"
     ServiceCost:
       type: object
       description: A single service (or tax "line") and its amount.
@@ -859,6 +903,32 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/BudgetStatus"
+        highlights:
+          type: array
+          description: Headline billing cards (budget, spend, trend, top service, waste, spike, top saving), max 6, in display order. The web UI renders these as-is.
+          items:
+            $ref: "#/components/schemas/Highlight"
+        headline:
+          type: string
+          description: Rule-based one-sentence summary of the period (no LLM), suitable for Slack/email digests.
+          example: "Last 30 days: $184,220.00 across 5 accounts, +$12,410.00 (+7%) vs prior period. Biggest increase: NAT Gateway (+$7,900.00)."
+    Highlight:
+      type: object
+      properties:
+        id:
+          type: string
+        kind:
+          type: string
+          enum: [spend, trend, waste, savings, concentration, budget]
+        title:
+          type: string
+        value:
+          type: string
+        detail:
+          type: string
+        ask_question:
+          type: string
+          description: Suggested follow-up question for /api/ask or an LLM chat.
     Forecast:
       type: object
       description: Projected end-of-month org spend (daily-average run-rate over the MTD daily series).

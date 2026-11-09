@@ -167,7 +167,8 @@ export default function SummaryDashboard({
 }: Props) {
   const top = topServices.slice(0, 5);
   const unattachedGiB = totals.volume_available_gib ?? 0;
-  const estWasteMonthly = unattachedGiB * GP3_USD_PER_GIB;
+  // Server prices unattached volumes per EBS type; gp3 ballpark only for older APIs.
+  const estWasteMonthly = totals.volume_available_est_monthly_usd ?? unattachedGiB * GP3_USD_PER_GIB;
   const lookbackDays = trends?.current_period?.days;
   const activePeriodLabel = periodLabel(period, lookbackDays);
   const compareLabel = priorCompareLabel(period);

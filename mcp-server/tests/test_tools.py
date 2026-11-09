@@ -174,6 +174,25 @@ def test_get_waste_signals(mock_fetch):
     mock_fetch.assert_called_once_with(refresh=False)
 
 
+def test_get_waste_signals_prefers_server_pricing():
+    dash = json.loads(json.dumps(SAMPLE_DASHBOARD))
+    dash["totals"]["volume_available_gib"] = 100
+    dash["totals"]["volume_available_est_monthly_usd"] = 12.5
+    dash["accounts"][0]["unattached_ebs_est_monthly_usd"] = 12.5
+    with patch.object(server, "fetch_dashboard", return_value=dash):
+        out = json.loads(server.get_waste_signals())
+    assert out["organization"]["estimated_unattached_monthly_usd"] == 12.5
+    assert out["accounts_with_signals"][0]["estimated_unattached_monthly_usd"] == 12.5
+    assert any("per EBS volume type" in g for g in out["guidance"])
+
+
+@patch.object(server, "fetch_dashboard", return_value=SAMPLE_DASHBOARD)
+def test_get_waste_signals_gp3_fallback_for_older_apis(mock_fetch):
+    out = json.loads(server.get_waste_signals())
+    # 100 GiB * $0.08 when the API predates per-type pricing
+    assert out["accounts_with_signals"][0]["estimated_unattached_monthly_usd"] == 8.0
+
+
 @patch.object(server, "fetch_dashboard", return_value=SAMPLE_DASHBOARD)
 def test_get_waste_signals_includes_commitments(mock_fetch):
     out = json.loads(server.get_waste_signals())

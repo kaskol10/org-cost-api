@@ -233,6 +233,18 @@ export interface ConsolidatedTotals {
   snapshot_count: number;
   snapshot_size_gib: number;
   account_count: number;
+  /** Unattached EBS monthly storage cost priced per volume type (server-computed). */
+  volume_available_est_monthly_usd?: number;
+  volume_available_by_type?: EBSTypeCost[];
+  volume_available_pricing_basis?: string;
+}
+
+export interface EBSTypeCost {
+  volume_type: string;
+  count: number;
+  size_gib: number;
+  price_per_gib_month: number;
+  estimated_monthly_usd: number;
 }
 
 export interface CommitmentCoverage {
@@ -269,6 +281,10 @@ export interface DashboardResponse {
   tax_excluded?: boolean;
   tax?: TaxBreakdown;
   commitments?: CommitmentCoverage;
+  /** Org-wide daily spend (all services) summed across accounts, server-computed. */
+  org_daily?: DailyCost[];
+  /** Daily EC2-Other spend summed across accounts, server-computed. */
+  org_ec2_other_daily?: DailyCost[];
 }
 
 export interface PeriodSummary {
@@ -400,6 +416,19 @@ export interface ReportResponse {
   refresh_allowed: boolean;
   forecast?: ForecastResult;
   budgets?: BudgetStatus[];
+  /** Billing highlight cards, server-computed (older APIs omit this). */
+  highlights?: ServerHighlight[];
+  /** Rule-based one-sentence period summary. */
+  headline?: string;
+}
+
+export interface ServerHighlight {
+  id: string;
+  kind: "spend" | "trend" | "waste" | "savings" | "concentration" | "budget";
+  title: string;
+  value: string;
+  detail: string;
+  ask_question: string;
 }
 
 export interface AskResponse {

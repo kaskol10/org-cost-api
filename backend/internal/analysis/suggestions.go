@@ -2,7 +2,6 @@ package analysis
 
 import (
 	"fmt"
-	"math"
 	"sort"
 )
 
@@ -289,15 +288,15 @@ func BuildSuggestions(dash DashboardView, trends *TrendsResponse, budgets []*Bud
 	}
 }
 
+// estimateUnattachedEBSMonthly prices unattached volumes by EBS type
+// (see EstimateUnattachedEBS); untyped volumes use the gp3 list price.
 func estimateUnattachedEBSMonthly(dash DashboardView) float64 {
-	var gib float64
+	vols := make([]*VolumeView, 0, len(dash.Accounts))
 	for _, acct := range dash.Accounts {
-		if acct.Volumes == nil || acct.Volumes.AvailableCount == 0 {
-			continue
-		}
-		gib += acct.Volumes.AvailableGiB
+		vols = append(vols, acct.Volumes)
 	}
-	return math.Round(gib*0.08*100) / 100
+	total, _ := EstimateUnattachedEBS(vols)
+	return total
 }
 
 // accountLabel joins the account names for the given IDs (max 2).

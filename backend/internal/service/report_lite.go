@@ -66,6 +66,7 @@ func (a *Aggregator) Report(ctx context.Context, force bool, period, view string
 		a.recordSnapshot(dash)
 	}
 
+	dash = withDerived(dash)
 	viewDash := toDashboardView(dash)
 	trends, err := a.trendsFromView(ctx, dash, viewDash, mode)
 	if err != nil {
@@ -85,6 +86,8 @@ func (a *Aggregator) Report(ctx context.Context, force bool, period, view string
 		ceTotal, cacheStatus, view, mode, force,
 	)
 
+	hl := highlightInput(dash, trends, suggestions, forecast, budgets, mode)
+
 	return &ReportResponse{
 		Dashboard:      dash,
 		Trends:         trends,
@@ -93,7 +96,37 @@ func (a *Aggregator) Report(ctx context.Context, force bool, period, view string
 		RefreshAllowed: refreshAllowed,
 		Forecast:       forecast,
 		Budgets:        budgets,
+		Highlights:     analysis.BuildHighlights(hl),
+		Headline:       analysis.BuildHeadline(hl),
 	}, nil
+}
+
+// highlightInput gathers what analysis.BuildHighlights / BuildHeadline read.
+// dash must already carry derived fields (see withDerived).
+func highlightInput(
+	dash *DashboardResponse,
+	trends *analysis.TrendsResponse,
+	suggestions *analysis.SuggestionsResponse,
+	forecast *analysis.ForecastResult,
+	budgets []*analysis.BudgetStatus,
+	mode appconfig.PeriodMode,
+) analysis.HighlightInput {
+	in := analysis.HighlightInput{
+		Period:                string(mode),
+		OrgTotal:              dash.Totals.OrgTotal,
+		AccountCount:          dash.Totals.AccountCount,
+		VolumeAvailableCount:  dash.Totals.VolumeAvailable,
+		VolumeAvailableGiB:    dash.Totals.VolumeAvailableGiB,
+		VolumeWasteMonthlyUSD: dash.Totals.VolumeAvailableEstMonthlyUSD,
+		Trends:                trends,
+		Suggestions:           suggestions,
+		Forecast:              forecast,
+		Budgets:               budgets,
+	}
+	if len(dash.TopServices) > 0 {
+		in.TopService = &analysis.ServiceDriverView{Service: dash.TopServices[0].Service, Amount: dash.TopServices[0].Amount}
+	}
+	return in
 }
 
 // buildForecastAndBudgets projects month-end org spend and evaluates each
