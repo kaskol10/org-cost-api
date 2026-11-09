@@ -8,6 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Versioned API: every route is served under `/api/v1/...`; the unversioned `/api/...` paths remain a permanent alias, so existing integrations keep working. `openapi.yaml` now documents `/api/v1` (`info.version` 1.0.0) and states the v1 compatibility rule (additive changes only)
+- Test that fails CI when `openapi.yaml` and the server's registered routes differ
+- Frontend types generated from `openapi.yaml` (`npm run gen:api` → `src/generated/openapi.ts`); API calls are type-checked against the spec, and CI fails if the generated file is stale
+
 - API computes what the web UI used to compute client-side, so third-party clients get the same numbers (additive; no existing field changed):
   - `report.highlights[]` and `report.headline` (rule-based one-sentence summary)
   - `dashboard.org_daily` and `dashboard.org_ec2_other_daily` (daily series summed across accounts)

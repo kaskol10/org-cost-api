@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   apiBase,
   apiHeaders,
+  apiGet,
   apiUrl,
   chatBase,
   chatEnabled,
@@ -61,7 +62,7 @@ describe("apiHeaders / fetchReport auth", () => {
     await fetchReport();
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "https://cost.example.com/api/report?period=30d",
+      "https://cost.example.com/api/v1/report?period=30d",
       expect.objectContaining({
         headers: expect.objectContaining({
           Authorization: "Bearer secret-token",
@@ -81,7 +82,7 @@ describe("apiHeaders / fetchReport auth", () => {
     await fetchReport("mtd");
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "https://cost.example.com/api/report?period=mtd",
+      "https://cost.example.com/api/v1/report?period=mtd",
       expect.anything()
     );
   });
@@ -100,7 +101,7 @@ describe("fetchAsk", () => {
     await fetchAsk("What are top drivers?", false, ac.signal);
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/ask",
+      "/api/v1/ask",
       expect.objectContaining({
         method: "POST",
         signal: ac.signal,
@@ -227,9 +228,25 @@ describe("fetchServiceTagTotals", () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const url = fetchMock.mock.calls[0][0] as string;
-    expect(url).toContain("/api/service-tag-totals?");
+    expect(url).toContain("/api/v1/service-tag-totals?");
     expect(url).toContain("tag_key=Name");
     expect(url).toContain("top_buckets=10");
     expect(url).toContain("service=Amazon+Simple+Storage+Service");
+  });
+});
+
+describe("apiGet contract typing", () => {
+  it("only accepts paths and query params declared in openapi.yaml", () => {
+    // These lambdas are never called; `tsc -b` (npm run build) fails if the
+    // expect-error markers below stop being errors, i.e. if typing regresses.
+    // @ts-expect-error path is not in the spec
+    void (() => apiGet("/api/v1/does-not-exist"));
+    // @ts-expect-error legacy unversioned path is not in the spec
+    void (() => apiGet("/api/report"));
+    // @ts-expect-error query parameter is not declared for this path
+    void (() => apiGet("/api/v1/report", { nope: "1" }));
+    // @ts-expect-error period must be one of the spec enum values
+    void (() => apiGet("/api/v1/report", { period: "7d" }));
+    expect(typeof apiGet).toBe("function");
   });
 });

@@ -4,9 +4,14 @@ info:
   description: |
     Read-only AWS organization cost explorer API.
 
-    Auth-exempt routes: `/api/health`, `/api/ready`, `/api/meta`.
+    All routes are served under `/api/v1`. The unversioned `/api/...` paths are a
+    permanent alias of v1 (existing integrations keep working); new clients should
+    use `/api/v1`. Within v1, changes are additive only: new fields and optional
+    parameters may appear, so clients should ignore unknown fields.
+
+    Auth-exempt routes: `/api/v1/health`, `/api/v1/ready`, `/api/v1/meta` (and their `/api/...` aliases).
     When `api_token_env` is configured, all other routes require `Authorization: Bearer <token>`.
-  version: 0.1.0
+  version: 1.0.0
 servers:
   - url: http://localhost:8080
     description: Local development
@@ -15,7 +20,7 @@ servers:
 security:
   - bearerAuth: []
 paths:
-  /api/health:
+  /api/v1/health:
     get:
       summary: Liveness probe
       description: Auth-exempt. Use for Kubernetes liveness / LB process checks.
@@ -27,7 +32,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
-  /api/ready:
+  /api/v1/ready:
     get:
       summary: Readiness probe
       description: >
@@ -49,7 +54,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ReadyStatus"
-  /api/meta:
+  /api/v1/meta:
     get:
       summary: Deployment metadata
       description: Auth-exempt. Used by the UI demo banner and MCP health checks.
@@ -61,7 +66,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MetaResponse"
-  /api/accounts:
+  /api/v1/accounts:
     get:
       summary: List configured accounts
       responses:
@@ -77,7 +82,7 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "500":
           $ref: "#/components/responses/InternalError"
-  /api/dashboard:
+  /api/v1/dashboard:
     get:
       summary: Organization dashboard
       description: >
@@ -97,7 +102,7 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "500":
           $ref: "#/components/responses/InternalError"
-  /api/trends:
+  /api/v1/trends:
     get:
       summary: Period-over-period trends
       parameters:
@@ -116,7 +121,7 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "500":
           $ref: "#/components/responses/InternalError"
-  /api/suggestions:
+  /api/v1/suggestions:
     get:
       summary: Cost optimization suggestions
       parameters:
@@ -135,7 +140,7 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "500":
           $ref: "#/components/responses/InternalError"
-  /api/report:
+  /api/v1/report:
     get:
       summary: Dashboard + trends + suggestions bundle
       parameters:
@@ -161,7 +166,7 @@ paths:
                 $ref: "#/components/schemas/Error"
         "500":
           $ref: "#/components/responses/InternalError"
-  /api/account-costs:
+  /api/v1/account-costs:
     get:
       summary: Per-account costs
       parameters:
@@ -187,7 +192,7 @@ paths:
           $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/InternalError"
-  /api/ask:
+  /api/v1/ask:
     post:
       summary: Natural-language cost question
       requestBody:
@@ -215,7 +220,7 @@ paths:
                 $ref: "#/components/schemas/Error"
         "500":
           $ref: "#/components/responses/InternalError"
-  /api/service-detail:
+  /api/v1/service-detail:
     get:
       summary: Service drill-down for one account
       parameters:
@@ -255,7 +260,7 @@ paths:
           $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/InternalError"
-  /api/service-tag-delta:
+  /api/v1/service-tag-delta:
     get:
       summary: Tag-bucket spend change explanation
       parameters:
@@ -303,7 +308,7 @@ paths:
           $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/InternalError"
-  /api/service-tag-totals:
+  /api/v1/service-tag-totals:
     get:
       summary: Top tag buckets by spend for a service
       parameters:
@@ -928,7 +933,7 @@ components:
           type: string
         ask_question:
           type: string
-          description: Suggested follow-up question for /api/ask or an LLM chat.
+          description: Suggested follow-up question for /api/v1/ask or an LLM chat.
     Forecast:
       type: object
       description: Projected end-of-month org spend (daily-average run-rate over the MTD daily series).
