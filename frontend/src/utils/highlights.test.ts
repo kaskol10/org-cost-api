@@ -18,8 +18,11 @@ const DASHBOARD: DashboardResponse = {
     snapshot_count: 2,
     snapshot_size_gib: 50,
     account_count: 4,
+    volume_usage_coverage_percent: 0,
+    volume_available_est_monthly_usd: 9.6,
   },
   top_services: [{ service: "AmazonEC2", amount: 4000, unit: "USD" }],
+  cur_enabled: false,
 };
 
 const TRENDS: TrendsResponse = {
@@ -46,6 +49,10 @@ const TRENDS: TrendsResponse = {
     },
   ],
   top_decreases: [],
+  service_trends: [],
+  account_trends: [],
+  top_account_increases: [],
+  top_account_decreases: [],
 };
 
 const SUGGESTIONS: SuggestionsResponse = {

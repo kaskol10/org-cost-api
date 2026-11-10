@@ -610,14 +610,14 @@ export interface components {
             demo: boolean;
         };
         ReadyStatus: {
-            ready?: boolean;
-            accounts_configured?: number;
-            snapshot_count?: number;
+            ready: boolean;
+            accounts_configured: number;
+            snapshot_count: number;
             /** @enum {string} */
-            billing_check?: "ok" | "skipped" | "failed";
+            billing_check: "ok" | "skipped" | "failed";
             billing_error?: string;
             /** @enum {string} */
-            accounts_check?: "ok" | "skipped" | "failed";
+            accounts_check: "ok" | "skipped" | "failed";
             accounts_error?: string;
         };
         AccountEntry: {
@@ -626,76 +626,73 @@ export interface components {
         };
         PeriodSummary: {
             /** Format: date */
-            start?: string;
+            start: string;
             /** Format: date */
-            end?: string;
+            end: string;
             days?: number;
         };
         OrgServiceDriver: {
-            service?: string;
-            amount?: number;
-            unit?: string;
+            service: string;
+            amount: number;
+            unit: string;
             percent?: number;
             top_accounts?: components["schemas"]["OrgServiceAccountShare"][];
         };
         OrgServiceAccountShare: {
-            account_id?: string;
-            account_name?: string;
-            amount?: number;
+            account_id: string;
+            account_name: string;
+            amount: number;
             percent?: number;
         };
         ConsolidatedTotals: {
-            org_total?: number;
-            ec2_other_cost?: number;
-            unit?: string;
-            volume_count?: number;
-            volume_available_count?: number;
-            volume_available_gib?: number;
-            volume_size_gib?: number;
-            snapshot_count?: number;
-            snapshot_size_gib?: number;
-            account_count?: number;
+            org_total: number;
+            ec2_other_cost: number;
+            unit: string;
+            volume_count: number;
+            volume_available_count: number;
+            volume_available_gib: number;
+            volume_size_gib: number;
+            volume_filesystem_used_gib?: number;
+            volume_utilization_percent?: number;
+            volume_usage_coverage_percent: number;
+            snapshot_count: number;
+            snapshot_size_gib: number;
+            account_count: number;
             /** @description Monthly storage cost of unattached EBS volumes, priced per volume type (AWS list price, storage only). Prefer this over computing volume_available_gib x a flat rate. */
-            volume_available_est_monthly_usd?: number;
+            volume_available_est_monthly_usd: number;
             volume_available_by_type?: components["schemas"]["EBSTypeCost"][];
             /** @description What the unattached-EBS estimate covers (show next to the number). */
             volume_available_pricing_basis?: string;
         };
         /** @description Unattached EBS volumes of one type and their estimated monthly storage cost. volume_type "unknown" covers volumes without a type breakdown, priced at the gp3 rate. */
         EBSTypeCost: {
-            volume_type?: string;
-            count?: number;
-            size_gib?: number;
-            price_per_gib_month?: number;
-            estimated_monthly_usd?: number;
+            volume_type: string;
+            count: number;
+            size_gib: number;
+            price_per_gib_month: number;
+            estimated_monthly_usd: number;
         };
         AccountDashboard: {
-            account_id?: string;
-            account_name?: string;
+            account_id: string;
+            account_name: string;
             error?: string;
-            costs?: {
-                [key: string]: unknown;
-            };
-            volumes?: {
-                [key: string]: unknown;
-            };
-            snapshots?: {
-                [key: string]: unknown;
-            };
+            costs?: components["schemas"]["CostSummary"];
+            volumes?: components["schemas"]["VolumeInventory"];
+            snapshots?: components["schemas"]["SnapshotSummary"];
             /** @description This account's unattached EBS volumes priced per volume type (omitted when zero). */
             unattached_ebs_est_monthly_usd?: number;
         };
         DashboardResponse: {
             /** Format: date-time */
-            generated_at?: string;
+            generated_at: string;
             /** Format: date */
-            start?: string;
+            start: string;
             /** Format: date */
-            end?: string;
-            accounts?: components["schemas"]["AccountDashboard"][];
-            totals?: components["schemas"]["ConsolidatedTotals"];
+            end: string;
+            accounts: components["schemas"]["AccountDashboard"][];
+            totals: components["schemas"]["ConsolidatedTotals"];
             top_services?: components["schemas"]["OrgServiceDriver"][];
-            cur_enabled?: boolean;
+            cur_enabled: boolean;
             cur_note?: string;
             /** @description How many of the most recent days Cost Explorer data is still lagging (typically 1-2). */
             incomplete_days?: number;
@@ -710,23 +707,23 @@ export interface components {
         };
         /** @description A single service (or tax "line") and its amount. */
         ServiceCost: {
-            service?: string;
-            amount?: number;
-            unit?: string;
+            service: string;
+            amount: number;
+            unit: string;
             percent?: number;
         };
         /** @description A single day's cost. */
         DailyCost: {
-            date?: string;
-            amount?: number;
-            unit?: string;
+            date: string;
+            amount: number;
+            unit: string;
         };
         /** @description Isolates Tax records (RECORD_TYPE=Tax) from usage. AWS posts the previous month's tax as a single lump on the 1st of the new month, which otherwise fakes a day-1 spike and skews period-over-period comparisons. Shown when tax is excluded from usage totals. */
         TaxBreakdown: {
             /** @description Tax for the range, computed as the difference between org spend with tax and org usage-only spend (both exclusion-filter queries), so it stays reliable when RECORD_TYPE=Tax filtering misbehaves. */
-            total_usd?: number;
+            total_usd: number;
             /** @description Org usage+tax spend (excludes only credits/refunds). */
-            incl_tax_total_usd?: number;
+            incl_tax_total_usd: number;
             /** @description Best-effort per-service tax breakdown (RECORD_TYPE=Tax query). May be empty even when total_usd > 0; tax is often a single "Tax" line. */
             by_service?: components["schemas"]["ServiceCost"][];
             /** @description Best-effort per-day tax totals; reveals the lump-on-the-1st pattern. May be empty even when total_usd > 0. */
@@ -748,52 +745,52 @@ export interface components {
             has_commitments?: boolean;
         };
         ServiceTrend: {
-            service?: string;
-            display_name?: string;
-            current_usd?: number;
-            prior_usd?: number;
-            change_usd?: number;
-            change_percent?: number;
+            service: string;
+            display_name: string;
+            current_usd: number;
+            prior_usd: number;
+            change_usd: number;
+            change_percent: number;
             /** @enum {string} */
-            direction?: "up" | "down" | "new" | "stable";
+            direction: "up" | "down" | "new" | "stable";
             current_share_pct?: number;
         };
         AccountTrend: {
-            account_id?: string;
-            account_name?: string;
-            current_usd?: number;
-            prior_usd?: number;
-            change_usd?: number;
-            change_percent?: number;
+            account_id: string;
+            account_name: string;
+            current_usd: number;
+            prior_usd: number;
+            change_usd: number;
+            change_percent: number;
             /** @enum {string} */
-            direction?: "up" | "down" | "new" | "stable";
+            direction: "up" | "down" | "new" | "stable";
             current_share_pct?: number;
         };
         ChangeSummary: {
-            current_usd?: number;
-            prior_usd?: number;
-            change_usd?: number;
-            change_percent?: number;
+            current_usd: number;
+            prior_usd: number;
+            change_usd: number;
+            change_percent: number;
         };
         TrendsResponse: {
             /** Format: date-time */
-            generated_at?: string;
+            generated_at: string;
             /**
              * @description Active period preset (30d or mtd)
              * @enum {string}
              */
             period?: "30d" | "mtd";
-            current_period?: components["schemas"]["PeriodSummary"];
-            prior_period?: components["schemas"]["PeriodSummary"];
-            prior_source?: string;
-            ce_calls_used?: number;
-            org_total?: components["schemas"]["ChangeSummary"];
-            service_trends?: components["schemas"]["ServiceTrend"][];
-            top_increases?: components["schemas"]["ServiceTrend"][];
-            top_decreases?: components["schemas"]["ServiceTrend"][];
-            account_trends?: components["schemas"]["AccountTrend"][];
-            top_account_increases?: components["schemas"]["AccountTrend"][];
-            top_account_decreases?: components["schemas"]["AccountTrend"][];
+            current_period: components["schemas"]["PeriodSummary"];
+            prior_period: components["schemas"]["PeriodSummary"];
+            prior_source: string;
+            ce_calls_used: number;
+            org_total: components["schemas"]["ChangeSummary"];
+            service_trends: components["schemas"]["ServiceTrend"][];
+            top_increases: components["schemas"]["ServiceTrend"][];
+            top_decreases: components["schemas"]["ServiceTrend"][];
+            account_trends: components["schemas"]["AccountTrend"][];
+            top_account_increases: components["schemas"]["AccountTrend"][];
+            top_account_decreases: components["schemas"]["AccountTrend"][];
             /** @description Daily org-spend anomalies vs the trailing median baseline. */
             spikes?: components["schemas"]["Spike"][];
             spike_meta?: components["schemas"]["SpikeMeta"];
@@ -803,58 +800,58 @@ export interface components {
         };
         Spike: {
             /** Format: date */
-            date?: string;
-            amount_usd?: number;
+            date: string;
+            amount_usd: number;
             /** @description Trailing 14-day median baseline for the day before it. */
-            baseline_usd?: number;
+            baseline_usd: number;
             /** @description (amount - baseline) / baseline * 100. Positive = spike up, negative = dip. */
-            deviation_pct?: number;
+            deviation_pct: number;
             /** @enum {string} */
-            direction?: "up" | "down";
+            direction: "up" | "down";
             /** @description Top accounts contributing the flagged day's spend. */
             account_ids?: string[];
         };
         /** @description Effective spike-detection thresholds (after defaults are applied), echoed so clients can describe the detection rule instead of hardcoding it. */
         SpikeMeta: {
             /** @description Trailing baseline window. */
-            baseline_days?: number;
+            baseline_days: number;
             /** @description Minimum deviation vs baseline, in percent. */
-            min_deviation_pct?: number;
+            min_deviation_pct: number;
             /** @description Minimum absolute deviation, in USD. */
-            min_deviation_usd?: number;
+            min_deviation_usd: number;
             /** @description Adaptive absolute floor: at least this percent of the day's baseline (whichever is larger than min_deviation_usd). */
-            min_baseline_share_pct?: number;
+            min_baseline_share_pct: number;
         };
         Suggestion: {
-            id?: string;
-            priority?: number;
-            category?: string;
-            title?: string;
-            detail?: string;
+            id: string;
+            priority: number;
+            category: string;
+            title: string;
+            detail: string;
             estimated_monthly_usd?: number;
-            actions?: string[];
+            actions: string[];
             account?: string;
             service?: string;
         };
         SuggestionsResponse: {
             /** Format: date-time */
-            generated_at?: string;
-            period?: string;
-            suggestions?: components["schemas"]["Suggestion"][];
-            summary?: string;
-            ce_calls_used?: number;
-            data_sources?: string[];
+            generated_at: string;
+            period: string;
+            suggestions: components["schemas"]["Suggestion"][];
+            summary: string;
+            ce_calls_used: number;
+            data_sources: string[];
         };
         ReportResponse: {
-            dashboard?: components["schemas"]["DashboardResponse"];
-            trends?: components["schemas"]["TrendsResponse"];
-            suggestions?: components["schemas"]["SuggestionsResponse"];
-            ce_calls_used?: number;
-            refresh_allowed?: boolean;
+            dashboard: components["schemas"]["DashboardResponse"] | null;
+            trends: components["schemas"]["TrendsResponse"] | null;
+            suggestions: components["schemas"]["SuggestionsResponse"] | null;
+            ce_calls_used: number;
+            refresh_allowed: boolean;
             forecast?: components["schemas"]["Forecast"];
             budgets?: components["schemas"]["BudgetStatus"][];
             /** @description Headline billing cards (budget, spend, trend, top service, waste, spike, top saving), max 6, in display order. The web UI renders these as-is. */
-            highlights?: components["schemas"]["Highlight"][];
+            highlights: components["schemas"]["Highlight"][];
             /**
              * @description Rule-based one-sentence summary of the period (no LLM), suitable for Slack/email digests.
              * @example Last 30 days: $184,220.00 across 5 accounts, +$12,410.00 (+7%) vs prior period. Biggest increase: NAT Gateway (+$7,900.00).
@@ -862,51 +859,45 @@ export interface components {
             headline?: string;
         };
         Highlight: {
-            id?: string;
+            id: string;
             /** @enum {string} */
-            kind?: "spend" | "trend" | "waste" | "savings" | "concentration" | "budget";
-            title?: string;
-            value?: string;
-            detail?: string;
+            kind: "spend" | "trend" | "waste" | "savings" | "concentration" | "budget";
+            title: string;
+            value: string;
+            detail: string;
             /** @description Suggested follow-up question for /api/v1/ask or an LLM chat. */
-            ask_question?: string;
+            ask_question: string;
         };
         /** @description Projected end-of-month org spend (daily-average run-rate over the MTD daily series). */
         Forecast: {
-            projected_usd?: number;
+            projected_usd: number;
             /** @description Spend so far in the current calendar month. */
-            mtd_usd?: number;
-            days_elapsed?: number;
-            days_in_month?: number;
-            daily_average?: number;
-            method?: string;
+            mtd_usd: number;
+            days_elapsed: number;
+            days_in_month: number;
+            daily_average: number;
+            method: string;
         };
         BudgetStatus: {
-            name?: string;
-            monthly_usd?: number;
+            name: string;
+            monthly_usd: number;
             /** @description Account name/id this budget is scoped to; empty means org-wide. */
             account?: string;
-            projected_usd?: number;
+            projected_usd: number;
             /** @description projected_usd / monthly_usd * 100. */
-            percent_of_budget?: number;
+            percent_of_budget: number;
             /** @enum {string} */
-            status?: "ok" | "warning" | "over";
+            status: "ok" | "warning" | "over";
             /** @description Positive overrun when projected spend exceeds budget. */
             over_by_usd?: number;
         };
         AccountCostsResponse: {
-            account_id?: string;
-            account_name?: string;
-            period?: components["schemas"]["PeriodSummary"];
-            costs?: {
-                [key: string]: unknown;
-            };
-            volumes?: {
-                [key: string]: unknown;
-            };
-            snapshots?: {
-                [key: string]: unknown;
-            };
+            account_id: string;
+            account_name: string;
+            period: components["schemas"]["PeriodSummary"];
+            costs: unknown;
+            volumes?: unknown;
+            snapshots?: unknown;
         };
         AskRequest: {
             question: string;
@@ -915,87 +906,251 @@ export interface components {
         };
         AskResponse: {
             /** @description Markdown answer */
-            answer?: string;
-            intent?: string;
-            sources?: string[];
-            ce_calls_used?: number;
+            answer: string;
+            intent: string;
+            ce_calls_used: number;
+            sources: string[];
         };
         ServiceDetail: {
-            account_id?: string;
-            service?: string;
+            account_id: string;
+            service: string;
             /** Format: date */
-            start?: string;
+            start: string;
             /** Format: date */
-            end?: string;
-            total?: number;
-            unit?: string;
-            daily?: {
-                [key: string]: unknown;
-            }[];
-            by_usage_type?: {
-                [key: string]: unknown;
-            }[];
-            by_region?: {
-                [key: string]: unknown;
-            }[];
-            by_operation?: {
-                [key: string]: unknown;
-            }[];
-            by_name_tag?: {
-                [key: string]: unknown;
-            }[];
+            end: string;
+            total: number;
+            unit: string;
+            daily: components["schemas"]["DailyCost"][];
+            by_region: components["schemas"]["ServiceGroupCost"][];
+            by_usage_type: components["schemas"]["ServiceGroupCost"][];
+            by_operation: components["schemas"]["ServiceGroupCost"][];
+            by_name_tag?: components["schemas"]["ServiceGroupCost"][];
         };
         TagDelta: {
-            key?: string;
-            current_usd?: number;
-            prior_usd?: number;
-            change_usd?: number;
-            change_percent?: number;
+            key: string;
+            current_usd: number;
+            prior_usd: number;
+            change_usd: number;
+            change_percent: number;
             current_share_pct?: number;
         };
         AccountTagDelta: {
-            account_id?: string;
-            account_name?: string;
-            total_current_usd?: number;
-            total_prior_usd?: number;
-            delta_usd?: number;
-            delta_percent?: number;
-            top_increases?: components["schemas"]["TagDelta"][];
-            top_decreases?: components["schemas"]["TagDelta"][];
+            account_id: string;
+            account_name: string;
+            total_current_usd: number;
+            total_prior_usd: number;
+            delta_usd: number;
+            delta_percent: number;
+            top_increases: components["schemas"]["TagDelta"][];
+            top_decreases: components["schemas"]["TagDelta"][];
         };
         ServiceTagDeltaResponse: {
             /** Format: date-time */
-            generated_at?: string;
-            service?: string;
-            display_name?: string;
-            tag_key?: string;
-            current_period?: components["schemas"]["PeriodSummary"];
-            prior_period?: components["schemas"]["PeriodSummary"];
-            total_current_usd?: number;
-            total_prior_usd?: number;
-            delta_usd?: number;
-            delta_percent?: number;
-            top_increases?: components["schemas"]["TagDelta"][];
-            top_decreases?: components["schemas"]["TagDelta"][];
-            accounts?: components["schemas"]["AccountTagDelta"][];
+            generated_at: string;
+            service: string;
+            display_name: string;
+            tag_key: string;
+            current_period: components["schemas"]["PeriodSummary"];
+            prior_period: components["schemas"]["PeriodSummary"];
+            total_current_usd: number;
+            total_prior_usd: number;
+            delta_usd: number;
+            delta_percent: number;
+            top_increases: components["schemas"]["TagDelta"][];
+            top_decreases: components["schemas"]["TagDelta"][];
+            accounts: components["schemas"]["AccountTagDelta"][];
             top_account_note?: string;
-            ce_calls_used?: number;
+            ce_calls_used: number;
         };
         TagBucket: {
-            key?: string;
-            current_usd?: number;
+            key: string;
+            current_usd: number;
             current_share_pct?: number;
         };
         ServiceTagTotalsResponse: {
             /** Format: date-time */
-            generated_at?: string;
-            service?: string;
-            display_name?: string;
-            tag_key?: string;
-            current_period?: components["schemas"]["PeriodSummary"];
-            total_current_usd?: number;
-            buckets?: components["schemas"]["TagBucket"][];
-            ce_calls_used?: number;
+            generated_at: string;
+            service: string;
+            display_name: string;
+            tag_key: string;
+            current_period: components["schemas"]["PeriodSummary"];
+            total_current_usd: number;
+            buckets: components["schemas"]["TagBucket"][];
+            ce_calls_used: number;
+        };
+        ServiceGroupCost: {
+            key: string;
+            amount: number;
+            unit: string;
+            percent?: number;
+        };
+        CostSummary: {
+            account_id: string;
+            account_name: string;
+            start: string;
+            end: string;
+            total: number;
+            unit: string;
+            daily: components["schemas"]["DailyCost"][];
+            by_usage_type: components["schemas"]["UsageTypeCost"][];
+            usage_categories: components["schemas"]["UsageCategory"][];
+            top_usage_daily: components["schemas"]["UsageTypeDaily"][];
+            by_api_operation: components["schemas"]["APIOperationCost"][];
+            snapshot_usage: components["schemas"]["SnapshotUsageCost"][];
+            all_total: number;
+            all_daily: components["schemas"]["DailyCost"][];
+            by_service: components["schemas"]["ServiceCost"][];
+            other_services_total: number;
+        };
+        VolumeInventory: {
+            count: number;
+            available_count: number;
+            available_gib: number;
+            total_gib: number;
+            by_type: components["schemas"]["VolumeTypeBreakdown"][];
+            available_by_type?: components["schemas"]["VolumeTypeBreakdown"][];
+            usage?: components["schemas"]["VolumeUsageSummary"];
+            scanned_at?: string;
+        };
+        SnapshotSummary: {
+            account_id: string;
+            account_name: string;
+            region: string;
+            count: number;
+            total_size_gib: number;
+            total_size_bytes: number;
+            /** Format: date-time */
+            scanned_at: string;
+            by_tier?: components["schemas"]["SnapshotTierBreakdown"][];
+            recent_creates?: components["schemas"]["SnapshotEvent"][];
+        };
+        UsageTypeCost: {
+            usage_type: string;
+            region?: string;
+            short_name?: string;
+            amount: number;
+            unit: string;
+            percent?: number;
+        };
+        UsageCategory: {
+            id: string;
+            label: string;
+            description: string;
+            amount: number;
+            percent: number;
+            usage_types: components["schemas"]["UsageTypeCost"][];
+            api_operations?: components["schemas"]["APIOperationCost"][];
+            peering_details: components["schemas"]["PeeringConnectionDetail"][];
+            peering_drivers_note?: string;
+            ebs_volume_detail?: components["schemas"]["EBSVolumeDetail"];
+            ebs_snapshot_detail?: components["schemas"]["EBSSnapshotDetail"];
+            inventory_count?: number;
+            inventory_size_gib?: number;
+        };
+        UsageTypeDaily: {
+            usage_type: string;
+            category: string;
+            total: number;
+            daily: components["schemas"]["DailyCost"][];
+        };
+        APIOperationCost: {
+            operation: string;
+            amount: number;
+            unit: string;
+            percent?: number;
+        };
+        SnapshotUsageCost: {
+            usage_type: string;
+            amount: number;
+            unit: string;
+        };
+        VolumeTypeBreakdown: {
+            volume_type: string;
+            count: number;
+            size_gib: number;
+        };
+        VolumeUsageSummary: {
+            provisioned_gib: number;
+            attached_provisioned_gib: number;
+            unattached_provisioned_gib: number;
+            filesystem_used_gib?: number;
+            utilization_percent?: number;
+            measured_provisioned_gib: number;
+            coverage_percent: number;
+            usage_note?: string;
+            by_instance?: components["schemas"]["VolumeInstanceUsage"][];
+            top_underutilized?: components["schemas"]["VolumeUsageRow"][];
+        };
+        SnapshotTierBreakdown: {
+            tier: string;
+            count: number;
+            size_gib: number;
+        };
+        SnapshotEvent: {
+            snapshot_id: string;
+            volume_id: string;
+            size_gib: number;
+            /** Format: date-time */
+            start_time: string;
+            description?: string;
+        };
+        PeeringConnectionDetail: {
+            peering_id: string;
+            name: string;
+            status: string;
+            region: string;
+            local_vpc: string;
+            local_cidr?: string;
+            peer_vpc: string;
+            peer_cidr?: string;
+            peer_region?: string;
+            peer_account?: string;
+            local_role: string;
+            out_total: number;
+            in_total: number;
+            out_vpc?: string;
+            in_vpc?: string;
+            attribution_note?: string;
+        };
+        EBSVolumeDetail: {
+            inventory: components["schemas"]["VolumeInventory"];
+            daily_cost: components["schemas"]["DailyCost"][];
+            cur_daily?: components["schemas"]["DailyResourceInventory"][];
+            inventory_note: string;
+        };
+        EBSSnapshotDetail: {
+            inventory?: components["schemas"]["SnapshotInventoryView"];
+            daily_cost?: components["schemas"]["DailyCost"][];
+            cur_daily?: components["schemas"]["DailyResourceInventory"][];
+            inventory_note?: string;
+        };
+        VolumeInstanceUsage: {
+            instance_id: string;
+            volume_count: number;
+            provisioned_gib: number;
+            filesystem_used_gib?: number;
+            filesystem_total_gib?: number;
+            utilization_percent?: number;
+        };
+        VolumeUsageRow: {
+            volume_id: string;
+            instance_id?: string;
+            volume_type: string;
+            state: string;
+            provisioned_gib: number;
+            filesystem_used_gib?: number;
+            utilization_percent?: number;
+            note?: string;
+        };
+        DailyResourceInventory: {
+            date: string;
+            count: number;
+            usage_amount?: number;
+        };
+        SnapshotInventoryView: {
+            count: number;
+            total_size_gib: number;
+            by_tier?: components["schemas"]["SnapshotTierBreakdown"][];
         };
     };
     responses: {

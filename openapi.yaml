@@ -448,6 +448,7 @@ components:
           description: true when serving synthetic fixture data
     ReadyStatus:
       type: object
+      required: [ready, accounts_configured, snapshot_count, billing_check, accounts_check]
       properties:
         ready:
           type: boolean
@@ -474,6 +475,7 @@ components:
           type: string
     PeriodSummary:
       type: object
+      required: [start, end]
       properties:
         start:
           type: string
@@ -485,6 +487,7 @@ components:
           type: integer
     OrgServiceDriver:
       type: object
+      required: [service, amount, unit]
       properties:
         service:
           type: string
@@ -500,6 +503,7 @@ components:
             $ref: "#/components/schemas/OrgServiceAccountShare"
     OrgServiceAccountShare:
       type: object
+      required: [account_id, account_name, amount]
       properties:
         account_id:
           type: string
@@ -511,6 +515,7 @@ components:
           type: number
     ConsolidatedTotals:
       type: object
+      required: [org_total, ec2_other_cost, unit, volume_count, volume_available_count, volume_available_gib, volume_size_gib, volume_usage_coverage_percent, snapshot_count, snapshot_size_gib, account_count, volume_available_est_monthly_usd]
       properties:
         org_total:
           type: number
@@ -525,6 +530,12 @@ components:
         volume_available_gib:
           type: number
         volume_size_gib:
+          type: number
+        volume_filesystem_used_gib:
+          type: number
+        volume_utilization_percent:
+          type: number
+        volume_usage_coverage_percent:
           type: number
         snapshot_count:
           type: integer
@@ -548,6 +559,7 @@ components:
     EBSTypeCost:
       type: object
       description: Unattached EBS volumes of one type and their estimated monthly storage cost. volume_type "unknown" covers volumes without a type breakdown, priced at the gp3 rate.
+      required: [volume_type, count, size_gib, price_per_gib_month, estimated_monthly_usd]
       properties:
         volume_type:
           type: string
@@ -561,6 +573,7 @@ components:
           type: number
     AccountDashboard:
       type: object
+      required: [account_id, account_name]
       properties:
         account_id:
           type: string
@@ -569,19 +582,17 @@ components:
         error:
           type: string
         costs:
-          type: object
-          additionalProperties: true
+          $ref: '#/components/schemas/CostSummary'
         volumes:
-          type: object
-          additionalProperties: true
+          $ref: '#/components/schemas/VolumeInventory'
         snapshots:
-          type: object
-          additionalProperties: true
+          $ref: '#/components/schemas/SnapshotSummary'
         unattached_ebs_est_monthly_usd:
           type: number
           description: This account's unattached EBS volumes priced per volume type (omitted when zero).
     DashboardResponse:
       type: object
+      required: [generated_at, start, end, accounts, totals, cur_enabled]
       properties:
         generated_at:
           type: string
@@ -629,6 +640,7 @@ components:
     ServiceCost:
       type: object
       description: A single service (or tax "line") and its amount.
+      required: [service, amount, unit]
       properties:
         service:
           type: string
@@ -641,6 +653,7 @@ components:
     DailyCost:
       type: object
       description: A single day's cost.
+      required: [date, amount, unit]
       properties:
         date:
           type: string
@@ -655,6 +668,7 @@ components:
         previous month's tax as a single lump on the 1st of the new month,
         which otherwise fakes a day-1 spike and skews period-over-period
         comparisons. Shown when tax is excluded from usage totals.
+      required: [total_usd, incl_tax_total_usd]
       properties:
         total_usd:
           type: number
@@ -705,6 +719,7 @@ components:
           type: boolean
     ServiceTrend:
       type: object
+      required: [service, display_name, current_usd, prior_usd, change_usd, change_percent, direction]
       properties:
         service:
           type: string
@@ -725,6 +740,7 @@ components:
           type: number
     AccountTrend:
       type: object
+      required: [account_id, account_name, current_usd, prior_usd, change_usd, change_percent, direction]
       properties:
         account_id:
           type: string
@@ -745,6 +761,7 @@ components:
           type: number
     ChangeSummary:
       type: object
+      required: [current_usd, prior_usd, change_usd, change_percent]
       properties:
         current_usd:
           type: number
@@ -756,6 +773,7 @@ components:
           type: number
     TrendsResponse:
       type: object
+      required: [generated_at, current_period, prior_period, prior_source, ce_calls_used, org_total, service_trends, top_increases, top_decreases, account_trends, top_account_increases, top_account_decreases]
       properties:
         generated_at:
           type: string
@@ -813,6 +831,7 @@ components:
           type: boolean
     Spike:
       type: object
+      required: [date, amount_usd, baseline_usd, deviation_pct, direction]
       properties:
         date:
           type: string
@@ -839,6 +858,7 @@ components:
         Effective spike-detection thresholds (after defaults are applied),
         echoed so clients can describe the detection rule instead of
         hardcoding it.
+      required: [baseline_days, min_deviation_pct, min_deviation_usd, min_baseline_share_pct]
       properties:
         baseline_days:
           type: integer
@@ -856,6 +876,7 @@ components:
             baseline (whichever is larger than min_deviation_usd).
     Suggestion:
       type: object
+      required: [id, priority, category, title, detail, actions]
       properties:
         id:
           type: string
@@ -879,6 +900,7 @@ components:
           type: string
     SuggestionsResponse:
       type: object
+      required: [generated_at, period, suggestions, summary, ce_calls_used, data_sources]
       properties:
         generated_at:
           type: string
@@ -899,13 +921,20 @@ components:
             type: string
     ReportResponse:
       type: object
+      required: [dashboard, trends, suggestions, ce_calls_used, refresh_allowed, highlights]
       properties:
         dashboard:
-          $ref: "#/components/schemas/DashboardResponse"
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/DashboardResponse"
         trends:
-          $ref: "#/components/schemas/TrendsResponse"
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/TrendsResponse"
         suggestions:
-          $ref: "#/components/schemas/SuggestionsResponse"
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/SuggestionsResponse"
         ce_calls_used:
           type: integer
         refresh_allowed:
@@ -927,6 +956,7 @@ components:
           example: "Last 30 days: $184,220.00 across 5 accounts, +$12,410.00 (+7%) vs prior period. Biggest increase: NAT Gateway (+$7,900.00)."
     Highlight:
       type: object
+      required: [id, kind, title, value, detail, ask_question]
       properties:
         id:
           type: string
@@ -945,6 +975,7 @@ components:
     Forecast:
       type: object
       description: Projected end-of-month org spend (daily-average run-rate over the MTD daily series).
+      required: [projected_usd, mtd_usd, days_elapsed, days_in_month, daily_average, method]
       properties:
         projected_usd:
           type: number
@@ -961,6 +992,7 @@ components:
           type: string
     BudgetStatus:
       type: object
+      required: [name, monthly_usd, projected_usd, percent_of_budget, status]
       properties:
         name:
           type: string
@@ -982,6 +1014,7 @@ components:
           description: Positive overrun when projected spend exceeds budget.
     AccountCostsResponse:
       type: object
+      required: [account_id, account_name, period, costs]
       properties:
         account_id:
           type: string
@@ -989,15 +1022,9 @@ components:
           type: string
         period:
           $ref: "#/components/schemas/PeriodSummary"
-        costs:
-          type: object
-          additionalProperties: true
-        volumes:
-          type: object
-          additionalProperties: true
-        snapshots:
-          type: object
-          additionalProperties: true
+        costs: {}
+        volumes: {}
+        snapshots: {}
     AskRequest:
       type: object
       required: [question]
@@ -1009,20 +1036,22 @@ components:
           default: false
     AskResponse:
       type: object
+      required: [answer, intent, ce_calls_used, sources]
       properties:
         answer:
           type: string
           description: Markdown answer
         intent:
           type: string
+        ce_calls_used:
+          type: integer
         sources:
           type: array
           items:
             type: string
-        ce_calls_used:
-          type: integer
     ServiceDetail:
       type: object
+      required: [account_id, service, start, end, total, unit, daily, by_region, by_usage_type, by_operation]
       properties:
         account_id:
           type: string
@@ -1041,30 +1070,26 @@ components:
         daily:
           type: array
           items:
-            type: object
-            additionalProperties: true
-        by_usage_type:
-          type: array
-          items:
-            type: object
-            additionalProperties: true
+            $ref: '#/components/schemas/DailyCost'
         by_region:
           type: array
           items:
-            type: object
-            additionalProperties: true
+            $ref: '#/components/schemas/ServiceGroupCost'
+        by_usage_type:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServiceGroupCost'
         by_operation:
           type: array
           items:
-            type: object
-            additionalProperties: true
+            $ref: '#/components/schemas/ServiceGroupCost'
         by_name_tag:
           type: array
           items:
-            type: object
-            additionalProperties: true
+            $ref: '#/components/schemas/ServiceGroupCost'
     TagDelta:
       type: object
+      required: [key, current_usd, prior_usd, change_usd, change_percent]
       properties:
         key:
           type: string
@@ -1080,6 +1105,7 @@ components:
           type: number
     AccountTagDelta:
       type: object
+      required: [account_id, account_name, total_current_usd, total_prior_usd, delta_usd, delta_percent, top_increases, top_decreases]
       properties:
         account_id:
           type: string
@@ -1103,6 +1129,7 @@ components:
             $ref: "#/components/schemas/TagDelta"
     ServiceTagDeltaResponse:
       type: object
+      required: [generated_at, service, display_name, tag_key, current_period, prior_period, total_current_usd, total_prior_usd, delta_usd, delta_percent, top_increases, top_decreases, accounts, ce_calls_used]
       properties:
         generated_at:
           type: string
@@ -1143,6 +1170,7 @@ components:
           type: integer
     TagBucket:
       type: object
+      required: [key, current_usd]
       properties:
         key:
           type: string
@@ -1152,6 +1180,7 @@ components:
           type: number
     ServiceTagTotalsResponse:
       type: object
+      required: [generated_at, service, display_name, tag_key, current_period, total_current_usd, buckets, ce_calls_used]
       properties:
         generated_at:
           type: string
@@ -1172,3 +1201,394 @@ components:
             $ref: "#/components/schemas/TagBucket"
         ce_calls_used:
           type: integer
+    ServiceGroupCost:
+      type: object
+      required: [key, amount, unit]
+      properties:
+        key:
+          type: string
+        amount:
+          type: number
+        unit:
+          type: string
+        percent:
+          type: number
+    CostSummary:
+      type: object
+      required: [account_id, account_name, start, end, total, unit, daily, by_usage_type, usage_categories, top_usage_daily, by_api_operation, snapshot_usage, all_total, all_daily, by_service, other_services_total]
+      properties:
+        account_id:
+          type: string
+        account_name:
+          type: string
+        start:
+          type: string
+        end:
+          type: string
+        total:
+          type: number
+        unit:
+          type: string
+        daily:
+          type: array
+          items:
+            $ref: '#/components/schemas/DailyCost'
+        by_usage_type:
+          type: array
+          items:
+            $ref: '#/components/schemas/UsageTypeCost'
+        usage_categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/UsageCategory'
+        top_usage_daily:
+          type: array
+          items:
+            $ref: '#/components/schemas/UsageTypeDaily'
+        by_api_operation:
+          type: array
+          items:
+            $ref: '#/components/schemas/APIOperationCost'
+        snapshot_usage:
+          type: array
+          items:
+            $ref: '#/components/schemas/SnapshotUsageCost'
+        all_total:
+          type: number
+        all_daily:
+          type: array
+          items:
+            $ref: '#/components/schemas/DailyCost'
+        by_service:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServiceCost'
+        other_services_total:
+          type: number
+    VolumeInventory:
+      type: object
+      required: [count, available_count, available_gib, total_gib, by_type]
+      properties:
+        count:
+          type: integer
+        available_count:
+          type: integer
+        available_gib:
+          type: number
+        total_gib:
+          type: number
+        by_type:
+          type: array
+          items:
+            $ref: '#/components/schemas/VolumeTypeBreakdown'
+        available_by_type:
+          type: array
+          items:
+            $ref: '#/components/schemas/VolumeTypeBreakdown'
+        usage:
+          $ref: '#/components/schemas/VolumeUsageSummary'
+        scanned_at:
+          type: string
+    SnapshotSummary:
+      type: object
+      required: [account_id, account_name, region, count, total_size_gib, total_size_bytes, scanned_at]
+      properties:
+        account_id:
+          type: string
+        account_name:
+          type: string
+        region:
+          type: string
+        count:
+          type: integer
+        total_size_gib:
+          type: number
+        total_size_bytes:
+          type: integer
+        scanned_at:
+          type: string
+          format: date-time
+        by_tier:
+          type: array
+          items:
+            $ref: '#/components/schemas/SnapshotTierBreakdown'
+        recent_creates:
+          type: array
+          items:
+            $ref: '#/components/schemas/SnapshotEvent'
+    UsageTypeCost:
+      type: object
+      required: [usage_type, amount, unit]
+      properties:
+        usage_type:
+          type: string
+        region:
+          type: string
+        short_name:
+          type: string
+        amount:
+          type: number
+        unit:
+          type: string
+        percent:
+          type: number
+    UsageCategory:
+      type: object
+      required: [id, label, description, amount, percent, usage_types, peering_details]
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+        description:
+          type: string
+        amount:
+          type: number
+        percent:
+          type: number
+        usage_types:
+          type: array
+          items:
+            $ref: '#/components/schemas/UsageTypeCost'
+        api_operations:
+          type: array
+          items:
+            $ref: '#/components/schemas/APIOperationCost'
+        peering_details:
+          type: array
+          items:
+            $ref: '#/components/schemas/PeeringConnectionDetail'
+        peering_drivers_note:
+          type: string
+        ebs_volume_detail:
+          $ref: '#/components/schemas/EBSVolumeDetail'
+        ebs_snapshot_detail:
+          $ref: '#/components/schemas/EBSSnapshotDetail'
+        inventory_count:
+          type: integer
+        inventory_size_gib:
+          type: number
+    UsageTypeDaily:
+      type: object
+      required: [usage_type, category, total, daily]
+      properties:
+        usage_type:
+          type: string
+        category:
+          type: string
+        total:
+          type: number
+        daily:
+          type: array
+          items:
+            $ref: '#/components/schemas/DailyCost'
+    APIOperationCost:
+      type: object
+      required: [operation, amount, unit]
+      properties:
+        operation:
+          type: string
+        amount:
+          type: number
+        unit:
+          type: string
+        percent:
+          type: number
+    SnapshotUsageCost:
+      type: object
+      required: [usage_type, amount, unit]
+      properties:
+        usage_type:
+          type: string
+        amount:
+          type: number
+        unit:
+          type: string
+    VolumeTypeBreakdown:
+      type: object
+      required: [volume_type, count, size_gib]
+      properties:
+        volume_type:
+          type: string
+        count:
+          type: integer
+        size_gib:
+          type: number
+    VolumeUsageSummary:
+      type: object
+      required: [provisioned_gib, attached_provisioned_gib, unattached_provisioned_gib, measured_provisioned_gib, coverage_percent]
+      properties:
+        provisioned_gib:
+          type: number
+        attached_provisioned_gib:
+          type: number
+        unattached_provisioned_gib:
+          type: number
+        filesystem_used_gib:
+          type: number
+        utilization_percent:
+          type: number
+        measured_provisioned_gib:
+          type: number
+        coverage_percent:
+          type: number
+        usage_note:
+          type: string
+        by_instance:
+          type: array
+          items:
+            $ref: '#/components/schemas/VolumeInstanceUsage'
+        top_underutilized:
+          type: array
+          items:
+            $ref: '#/components/schemas/VolumeUsageRow'
+    SnapshotTierBreakdown:
+      type: object
+      required: [tier, count, size_gib]
+      properties:
+        tier:
+          type: string
+        count:
+          type: integer
+        size_gib:
+          type: number
+    SnapshotEvent:
+      type: object
+      required: [snapshot_id, volume_id, size_gib, start_time]
+      properties:
+        snapshot_id:
+          type: string
+        volume_id:
+          type: string
+        size_gib:
+          type: number
+        start_time:
+          type: string
+          format: date-time
+        description:
+          type: string
+    PeeringConnectionDetail:
+      type: object
+      required: [peering_id, name, status, region, local_vpc, peer_vpc, local_role, out_total, in_total]
+      properties:
+        peering_id:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+        region:
+          type: string
+        local_vpc:
+          type: string
+        local_cidr:
+          type: string
+        peer_vpc:
+          type: string
+        peer_cidr:
+          type: string
+        peer_region:
+          type: string
+        peer_account:
+          type: string
+        local_role:
+          type: string
+        out_total:
+          type: number
+        in_total:
+          type: number
+        out_vpc:
+          type: string
+        in_vpc:
+          type: string
+        attribution_note:
+          type: string
+    EBSVolumeDetail:
+      type: object
+      required: [inventory, daily_cost, inventory_note]
+      properties:
+        inventory:
+          $ref: '#/components/schemas/VolumeInventory'
+        daily_cost:
+          type: array
+          items:
+            $ref: '#/components/schemas/DailyCost'
+        cur_daily:
+          type: array
+          items:
+            $ref: '#/components/schemas/DailyResourceInventory'
+        inventory_note:
+          type: string
+    EBSSnapshotDetail:
+      type: object
+      properties:
+        inventory:
+          $ref: '#/components/schemas/SnapshotInventoryView'
+        daily_cost:
+          type: array
+          items:
+            $ref: '#/components/schemas/DailyCost'
+        cur_daily:
+          type: array
+          items:
+            $ref: '#/components/schemas/DailyResourceInventory'
+        inventory_note:
+          type: string
+    VolumeInstanceUsage:
+      type: object
+      required: [instance_id, volume_count, provisioned_gib]
+      properties:
+        instance_id:
+          type: string
+        volume_count:
+          type: integer
+        provisioned_gib:
+          type: number
+        filesystem_used_gib:
+          type: number
+        filesystem_total_gib:
+          type: number
+        utilization_percent:
+          type: number
+    VolumeUsageRow:
+      type: object
+      required: [volume_id, volume_type, state, provisioned_gib]
+      properties:
+        volume_id:
+          type: string
+        instance_id:
+          type: string
+        volume_type:
+          type: string
+        state:
+          type: string
+        provisioned_gib:
+          type: number
+        filesystem_used_gib:
+          type: number
+        utilization_percent:
+          type: number
+        note:
+          type: string
+    DailyResourceInventory:
+      type: object
+      required: [date, count]
+      properties:
+        date:
+          type: string
+        count:
+          type: integer
+        usage_amount:
+          type: number
+    SnapshotInventoryView:
+      type: object
+      required: [count, total_size_gib]
+      properties:
+        count:
+          type: integer
+        total_size_gib:
+          type: number
+        by_tier:
+          type: array
+          items:
+            $ref: '#/components/schemas/SnapshotTierBreakdown'
