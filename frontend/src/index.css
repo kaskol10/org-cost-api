@@ -30,14 +30,6 @@ body {
   margin: 0;
 }
 
-.vgpu-background {
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  opacity: 0.9;
-}
-
 .demo-banner {
   position: sticky;
   top: 0;
@@ -146,74 +138,6 @@ h1, h2, h3 {
   padding: 2rem 1.5rem 4rem;
 }
 
-.header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1rem;
-}
-
-.header h1 {
-  font-size: 1.75rem;
-  letter-spacing: -0.02em;
-}
-
-.header p {
-  margin: 0.35rem 0 0;
-  color: var(--muted);
-  font-size: 0.95rem;
-}
-
-.header-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.cost-context-bar {
-  position: sticky;
-  top: 0;
-  z-index: 90; /* under .demo-banner (100) */
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 0.75rem 1.25rem;
-  margin: -0.5rem 0 1rem;
-  padding: 0.65rem 0.9rem;
-  background: color-mix(in srgb, var(--surface) 92%, transparent);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-}
-
-/* Sit below sticky demo banner when present */
-body:has(.demo-banner) .cost-context-bar {
-  top: 2.75rem;
-}
-
-.cost-context-main {
-  flex: 1 1 240px;
-  min-width: 0;
-}
-
-.cost-context-eyebrow {
-  margin: 0;
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--muted);
-  font-weight: 600;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.45rem;
-}
-
 .cost-context-demo-chip {
   text-transform: none;
   letter-spacing: 0;
@@ -224,43 +148,6 @@ body:has(.demo-banner) .cost-context-bar {
   background: color-mix(in srgb, var(--accent) 18%, transparent);
   color: var(--accent);
   border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
-}
-
-.cost-context-total-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.65rem;
-  margin-top: 0.2rem;
-}
-
-.cost-context-total {
-  margin: 0;
-  font-size: 1.85rem;
-  font-weight: 700;
-  letter-spacing: -0.03em;
-  line-height: 1.15;
-}
-
-.cost-context-total.muted {
-  color: var(--muted);
-  font-weight: 600;
-}
-
-.cost-context-total.is-updating {
-  opacity: 0.72;
-}
-
-.cost-context-meta {
-  margin: 0.35rem 0 0;
-  font-size: 0.85rem;
-  color: var(--muted);
-}
-
-.cost-context-updating {
-  margin: 0.35rem 0 0;
-  font-size: 0.8rem;
-  color: var(--accent);
 }
 
 .cost-context-budget {
@@ -324,13 +211,6 @@ body:has(.demo-banner) .cost-context-bar {
 
 .cost-context-budget.budget-over .cost-context-budget-note {
   color: var(--danger);
-}
-
-.cost-context-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.65rem;
 }
 
 .summary-hero-compact .summary-meta {
@@ -1436,32 +1316,6 @@ td.amount {
   font-size: 0.9rem;
 }
 
-.tab-nav {
-  display: flex;
-  gap: 0.5rem;
-  margin-bottom: 1.5rem;
-}
-
-.tab-panel-hidden {
-  display: none;
-}
-
-.tab {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  color: var(--muted);
-  padding: 0.5rem 1rem;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 0.95rem;
-}
-
-.tab.active {
-  color: var(--text);
-  border-color: var(--accent-dim);
-  background: var(--surface-2);
-}
-
 .billing-highlights {
   margin-bottom: 1.5rem;
 }
@@ -1484,7 +1338,7 @@ td.amount {
 }
 
 .billing-highlights-compact .billing-highlights-grid {
-  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
 }
 
 .billing-highlights-compact .billing-highlights-head h2 {
@@ -2406,4 +2260,399 @@ td.amount {
   margin-top: 0.2rem;
   padding: 0.2rem 0.55rem;
   font-size: 0.78rem;
+}
+
+/* —— One-page layout: top bar, headline, cost bridge, Ask drawer —— */
+:root {
+  --delta-up: #d03b3b;   /* cost went up (status: critical) */
+  --delta-down: #0ca30c; /* cost went down (status: good) */
+  --drawer-w: min(460px, 100vw);
+}
+
+body {
+  background: var(--bg);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 110;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.topbar-inner {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0.6rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.topbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.topbar-title {
+  font-weight: 600;
+  font-size: 1rem;
+  letter-spacing: -0.01em;
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.topbar-actions .btn {
+  padding: 0.4rem 0.9rem;
+}
+
+.cost-context-demo-chip {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  color: var(--accent);
+  border: 1px solid var(--accent-dim);
+}
+
+.demo-banner {
+  position: static;
+}
+
+.app {
+  padding-top: 1.75rem;
+}
+
+.headline {
+  margin-bottom: 1.5rem;
+  max-width: 62rem;
+}
+
+.headline-text {
+  margin: 0;
+  font-family: Georgia, "Iowan Old Style", "Times New Roman", serif;
+  font-size: clamp(1.35rem, 1.1rem + 1vw, 1.9rem);
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+.headline-text.muted {
+  color: var(--muted);
+}
+
+.headline-text.is-updating {
+  opacity: 0.6;
+}
+
+.headline-meta {
+  margin: 0.5rem 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.headline .cost-context-budget {
+  margin-top: 1rem;
+  max-width: 40rem;
+}
+
+.cost-context-budget {
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.delta-up {
+  color: #f28b82;
+}
+
+.delta-down {
+  color: #6fcf6f;
+}
+
+/* Cost bridge */
+.cost-bridge-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.panel.cost-bridge h2 {
+  margin: 0;
+}
+
+.cost-bridge-sub {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.cost-bridge-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+
+.cost-bridge-hit {
+  fill: transparent;
+}
+
+.cost-bridge-row.is-interactive {
+  cursor: pointer;
+}
+
+.cost-bridge-row.is-hover .cost-bridge-hit,
+.cost-bridge-row.is-interactive:focus-visible .cost-bridge-hit {
+  fill: color-mix(in srgb, var(--text) 6%, transparent);
+}
+
+.cost-bridge-row:focus {
+  outline: none;
+}
+
+.cost-bridge-row.is-interactive:focus-visible .cost-bridge-hit {
+  stroke: var(--accent);
+  stroke-width: 1.5;
+}
+
+.cost-bridge-label,
+.cost-bridge-value {
+  font-size: 13px;
+  fill: var(--muted);
+}
+
+.cost-bridge-label.is-total,
+.cost-bridge-value.is-total {
+  fill: var(--text);
+  font-weight: 600;
+}
+
+.cost-bridge-value {
+  fill: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.cost-bridge-up {
+  fill: var(--delta-up);
+}
+
+.cost-bridge-down {
+  fill: var(--delta-down);
+}
+
+.cost-bridge-total {
+  fill: var(--text);
+}
+
+.cost-bridge-ref {
+  stroke: var(--border);
+  stroke-width: 1;
+  stroke-dasharray: 3 4;
+}
+
+.cost-bridge-connector {
+  stroke: var(--muted);
+  stroke-width: 1;
+  opacity: 0.6;
+}
+
+.cost-bridge-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 1rem;
+  margin-top: 0.5rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.cost-bridge-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.cost-bridge-swatch {
+  width: 12px;
+  height: 8px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+.cost-bridge-swatch.is-up {
+  background: var(--delta-up);
+}
+
+.cost-bridge-swatch.is-down {
+  background: var(--delta-down);
+}
+
+.cost-bridge-note {
+  margin-left: auto;
+}
+
+/* Ask drawer */
+.ask-drawer-root {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  pointer-events: none;
+  visibility: hidden;
+  transition: visibility 0s linear 0.2s;
+}
+
+.ask-drawer-root.is-open {
+  pointer-events: auto;
+  visibility: visible;
+  transition: visibility 0s;
+}
+
+.ask-drawer-scrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.ask-drawer-root.is-open .ask-drawer-scrim {
+  opacity: 1;
+}
+
+.ask-drawer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: var(--drawer-w);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  border-left: 1px solid var(--border);
+  box-shadow: -12px 0 32px rgba(0, 0, 0, 0.35);
+  transform: translateX(100%);
+  transition: transform 0.2s ease;
+}
+
+.ask-drawer-root.is-open .ask-drawer {
+  transform: translateX(0);
+}
+
+.ask-drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.ask-drawer-head h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.ask-drawer-close {
+  padding: 0.2rem 0.6rem;
+}
+
+.ask-drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem;
+}
+
+.ask-drawer-body > section,
+.ask-drawer-body > div {
+  margin-bottom: 1rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ask-drawer,
+  .ask-drawer-scrim,
+  .ask-drawer-root {
+    transition: none;
+  }
+}
+
+.cost-bridge-plot {
+  width: 100%;
+}
+
+.cost-bridge-svg {
+  width: auto;
+  max-width: 100%;
+}
+
+.page-note {
+  margin: -0.75rem 0 1rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.label-short {
+  display: none;
+}
+
+@media (max-width: 560px) {
+  .topbar-inner {
+    padding: 0.5rem 0.9rem;
+    flex-wrap: nowrap;
+  }
+
+  .topbar-title {
+    font-size: 0.9rem;
+  }
+
+  .topbar-brand .cost-context-demo-chip {
+    display: none;
+  }
+
+  .topbar-actions {
+    flex-wrap: nowrap;
+    gap: 0.35rem;
+  }
+
+  .topbar-actions .btn {
+    padding: 0.35rem 0.6rem;
+  }
+
+  .label-long {
+    display: none;
+  }
+
+  .label-short {
+    display: inline;
+  }
+
+  .cost-bridge-note {
+    margin-left: 0;
+  }
 }

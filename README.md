@@ -5,6 +5,8 @@
 
 Understand **AWS organization spend** and find cost reduction opportunities — per account, per service, with waste signals (unattached EBS, snapshots) and natural-language Q&A via MCP or the web UI.
 
+![Org cost overview: headline, budget, and a cost bridge by service (demo data)](docs/images/ui-overview.png)
+
 ## Try it in 30 seconds (no AWS)
 
 **Local Docker (recommended):**

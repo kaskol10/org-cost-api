@@ -4,18 +4,18 @@ import AccountCard from "./components/AccountCard";
 import ChatStatusBanner from "./components/ChatStatusBanner";
 import AskPanel, { type AskRequest } from "./components/AskPanel";
 import BillingHighlights from "./components/BillingHighlights";
-import CostContextBar from "./components/CostContextBar";
+import AskDrawer from "./components/AskDrawer";
+import BudgetBar from "./components/BudgetBar";
+import CostBridge from "./components/CostBridge";
 import DailyCostChart from "./components/DailyCostChart";
 import OrgTopServicesPanel from "./components/OrgTopServicesPanel";
 import SpikesPanel from "./components/SpikesPanel";
 import SuggestionsPanel from "./components/SuggestionsPanel";
 import SummaryDashboard from "./components/SummaryDashboard";
-import VgpuBackground from "./components/VgpuBackground";
 import { buildBillingHighlights, fromServerHighlights } from "./utils/highlights";
 import { formatCurrency, formatSignedCurrency } from "./utils/format";
+import { periodLabel } from "./utils/periodLabels";
 import type { BudgetStatus, DashboardResponse, DailyCost, ForecastResult, ReportResponse, ServerHighlight, SuggestionsResponse, TrendsResponse } from "./types";
-
-type Tab = "ask" | "explore";
 
 function mergeDaily(
   accounts: DashboardResponse["accounts"] | undefined,
@@ -37,7 +37,7 @@ function mergeDaily(
 }
 
 export default function App() {
-  const [tab, setTab] = useState<Tab>("ask");
+  const [askOpen, setAskOpen] = useState(false);
   const [askRequest, setAskRequest] = useState<AskRequest | null>(null);
   const askIdRef = useRef(0);
   const [data, setData] = useState<DashboardResponse | null>(null);
@@ -46,6 +46,7 @@ export default function App() {
   const [forecast, setForecast] = useState<ForecastResult | null>(null);
   const [budgets, setBudgets] = useState<BudgetStatus[] | null>(null);
   const [serverHighlights, setServerHighlights] = useState<ServerHighlight[] | null>(null);
+  const [headline, setHeadline] = useState<string | null>(null);
   const [enrichingSuggestions, setEnrichingSuggestions] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [authError, setAuthError] = useState(false);
@@ -92,6 +93,7 @@ export default function App() {
       setForecast(report.forecast ?? null);
       setBudgets(report.budgets ?? null);
       setServerHighlights(report.highlights ?? null);
+      setHeadline(report.headline ?? null);
       setLoading(false);
       await applySuggestions(report, false);
     } catch (e) {
@@ -115,6 +117,7 @@ export default function App() {
       setForecast(report.forecast ?? null);
       setBudgets(report.budgets ?? null);
       setServerHighlights(report.highlights ?? null);
+      setHeadline(report.headline ?? null);
       setLoading(false);
       await applySuggestions(report, true);
     } catch (e) {
@@ -180,7 +183,7 @@ export default function App() {
   }, [trends, topAccountsBySpend]);
 
   const handleAskAbout = useCallback((question: string) => {
-    setTab("ask");
+    setAskOpen(true);
     askIdRef.current += 1;
     setAskRequest({ id: askIdRef.current, question });
   }, []);
@@ -188,6 +191,8 @@ export default function App() {
   const clearAskRequest = useCallback(() => {
     setAskRequest(null);
   }, []);
+
+  const closeAsk = useCallback(() => setAskOpen(false), []);
 
   const openAccountDetails = useCallback((accountId: string) => {
     setShowDetails(true);
@@ -198,9 +203,57 @@ export default function App() {
     }, 50);
   }, []);
 
+  const headlineText =
+    headline ??
+    (data
+      ? `${periodLabel(period, trends?.current_period?.days)}: ${formatCurrency(data.totals.org_total)} across ${data.totals.account_count} accounts.`
+      : null);
+
   return (
     <>
-      <VgpuBackground />
+      <header className="topbar">
+        <div className="topbar-inner">
+          <div className="topbar-brand">
+            <span className="topbar-title">AWS Org Cost</span>
+            {demoMode && <span className="cost-context-demo-chip">Demo data</span>}
+          </div>
+          <div className="topbar-actions">
+            <div className="period-toggle" role="group" aria-label="Cost period">
+              {(["30d", "mtd"] as const).map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  className={period === p ? "period-toggle-btn active" : "period-toggle-btn"}
+                  aria-pressed={period === p}
+                  onClick={() => setPeriod(p)}
+                  disabled={loading}
+                >
+                  <span className="label-long">{p === "30d" ? "Last 30 days" : "Month to date"}</span>
+                  <span className="label-short" aria-hidden="true">{p === "30d" ? "30d" : "MTD"}</span>
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={refresh}
+              disabled={loading}
+              title="Fetch fresh numbers from AWS Cost Explorer (limited to once every 5 minutes)"
+            >
+              {loading ? "Refreshing…" : "Refresh"}
+            </button>
+            <button
+              type="button"
+              className="btn topbar-ask"
+              onClick={() => setAskOpen((v) => !v)}
+              aria-expanded={askOpen}
+            >
+              Ask
+            </button>
+          </div>
+        </div>
+      </header>
+
       {demoMode && !demoBannerDismissed && (
         <div className="demo-banner" role="status">
           <span>Demo data — not connected to AWS. Explore the UI with synthetic fixture costs.</span>
@@ -209,109 +262,54 @@ export default function App() {
           </button>
         </div>
       )}
-      <div className="app">
-      <header className="header">
-        <div>
-          <h1>AWS Org Cost Explorer</h1>
-          <p>
-            {dateRange
-              ? `Usage spend for ${dateRange}`
-              : "Org-wide AWS usage spend, trends, and savings opportunities"}
-          </p>
-        </div>
-      </header>
 
-      <CostContextBar
-        orgTotal={data?.totals.org_total ?? null}
-        accountCount={data?.totals.account_count}
-        dateRange={dateRange ?? undefined}
-        trends={trends}
-        trendsLoading={loading && !trends}
-        period={period}
-        onPeriodChange={setPeriod}
-        onRefresh={refresh}
-        loading={loading}
-        demoMode={demoMode}
-        forecast={forecast}
-        budgets={budgets}
-      />
-
-      <nav className="tab-nav" role="tablist">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === "ask"}
-          className={tab === "ask" ? "tab active" : "tab"}
-          onClick={() => setTab("ask")}
-        >
-          Chat
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === "explore"}
-          className={tab === "explore" ? "tab active" : "tab"}
-          onClick={() => setTab("explore")}
-        >
-          Explore
-        </button>
-      </nav>
-
-      {authError && (
-        <div className="error">
-          API returned 401 — set <code>VITE_API_TOKEN</code> to match{" "}
-          <code>ORG_COST_API_TOKEN</code> and restart the dev server.
-        </div>
-      )}
-
-      {error && !authError && <div className="error">{error}</div>}
-
-      <div
-        className={tab === "ask" ? undefined : "tab-panel-hidden"}
-        aria-hidden={tab !== "ask"}
-      >
-        <ChatStatusBanner apiOk={!!data && !error} apiError={error} />
-        {loading && !data && <p className="loading">Loading billing context…</p>}
-        {highlights.length > 0 && (
-          <BillingHighlights highlights={highlights} onAskAbout={handleAskAbout} />
+      <main className="app">
+        {authError && (
+          <div className="error">
+            The API rejected the request (401): this deployment requires an API token. For local
+            development set <code>VITE_API_TOKEN</code> to the server&apos;s token and restart Vite.
+          </div>
         )}
-        <AskPanel
-          askRequest={askRequest}
-          onAskRequestHandled={clearAskRequest}
-        />
-      </div>
+        {error && !authError && <div className="error">{error}</div>}
 
-      <div
-        className={tab === "explore" ? undefined : "tab-panel-hidden"}
-        aria-hidden={tab !== "explore"}
-      >
-        {loading && !data && <p className="loading">Loading AWS data…</p>}
+        <section className="headline" aria-live="polite">
+          {headlineText ? (
+            <p className={`headline-text${loading ? " is-updating" : ""}`}>{headlineText}</p>
+          ) : (
+            <p className="headline-text muted">{loading ? "Loading your AWS spend…" : "No cost data yet."}</p>
+          )}
+          {data && (
+            <p className="headline-meta">
+              {dateRange}
+              <span className="summary-dot">·</span>
+              {data.totals.account_count} accounts
+              <span className="summary-dot">·</span>
+              updated {new Date(data.generated_at).toLocaleString()}
+              {loading && <span className="headline-updating"> · updating…</span>}
+            </p>
+          )}
+          <BudgetBar forecast={forecast} budgets={budgets} />
+        </section>
 
         {data && (
           <>
-            {data.cur_note && (
-              <div className="error" style={{ marginBottom: "1rem" }}>
-                {data.cur_note}
-              </div>
-            )}
-            {data.cur_enabled && (
-              <p className="category-desc" style={{ marginBottom: "1rem" }}>
-                EBS daily disk/snapshot counts use your Cost and Usage Report (Athena).
-              </p>
+            {data.cur_note && <p className="page-note">{data.cur_note}</p>}
+
+            <CostBridge trends={trends} period={period} onAskAbout={handleAskAbout} />
+
+            {highlights.length > 0 && (
+              <BillingHighlights highlights={highlights} onAskAbout={handleAskAbout} compact />
             )}
 
-            <SummaryDashboard
-              totals={data.totals}
-              topServices={data.top_services ?? []}
-              accounts={data.accounts}
-              orgDaily={consolidatedOrgDaily}
-              dateRange={dateRange ?? ""}
-              trends={trends}
-              trendsLoading={loading && !trends}
-              period={period}
-              commitments={data.commitments ?? null}
-              tax={data.tax ?? null}
-            />
+            <section className="panel">
+              <DailyCostChart
+                data={consolidatedOrgDaily}
+                title="Daily organization spend (all services, usage)"
+                seriesName="Org spend"
+                spikes={trends?.spikes}
+                incompleteDays={data.incomplete_days ?? 0}
+              />
+            </section>
 
             {trends?.spikes && trends.spikes.length > 0 && (
               <SpikesPanel
@@ -333,62 +331,60 @@ export default function App() {
                 }
               >
                 <h2 className="top-accounts-strip-title">
-                  {accountStrip.mode === "movers"
-                    ? "Account movers"
-                    : "Top accounts by spend"}
+                  {accountStrip.mode === "movers" ? "Account movers" : "Top accounts by spend"}
                 </h2>
-                {accountStrip.mode === "movers" ? (
-                  <ul className="top-accounts-strip-list">
-                    {[
-                      ...accountStrip.increases.map((t) => ({ t, up: true })),
-                      ...accountStrip.decreases.map((t) => ({ t, up: false })),
-                    ].map(({ t, up }) => (
-                      <li key={`${up ? "up" : "down"}-${t.account_id}`}>
-                        <button
-                          type="button"
-                          className={`top-accounts-chip ${up ? "top-accounts-chip-up" : "top-accounts-chip-down"}`}
-                          onClick={() => openAccountDetails(t.account_id)}
-                          title={`Show details for ${t.account_name}`}
-                        >
-                          <span className="top-accounts-chip-name">{t.account_name}</span>
-                          <span
-                            className={`top-accounts-chip-amount ${up ? "up" : "down"}`}
+                <ul className="top-accounts-strip-list">
+                  {accountStrip.mode === "movers"
+                    ? [
+                        ...accountStrip.increases.map((t) => ({ t, up: true })),
+                        ...accountStrip.decreases.map((t) => ({ t, up: false })),
+                      ].map(({ t, up }) => (
+                        <li key={`${up ? "up" : "down"}-${t.account_id}`}>
+                          <button
+                            type="button"
+                            className={`top-accounts-chip ${up ? "top-accounts-chip-up" : "top-accounts-chip-down"}`}
+                            onClick={() => openAccountDetails(t.account_id)}
+                            title={`Show details for ${t.account_name}`}
                           >
-                            {formatSignedCurrency(t.change_usd)}
-                          </span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <ul className="top-accounts-strip-list">
-                    {accountStrip.accounts.map((acct) => (
-                      <li key={acct.account_id}>
-                        <button
-                          type="button"
-                          className="top-accounts-chip"
-                          onClick={() => openAccountDetails(acct.account_id)}
-                          title={`Show details for ${acct.account_name}`}
-                        >
-                          <span className="top-accounts-chip-name">{acct.account_name}</span>
-                          <span className="top-accounts-chip-amount">
-                            {formatCurrency(acct.costs?.all_total ?? 0)}
-                          </span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                            <span className="top-accounts-chip-name">{t.account_name}</span>
+                            <span className={`top-accounts-chip-amount ${up ? "up" : "down"}`}>
+                              {formatSignedCurrency(t.change_usd)}
+                            </span>
+                          </button>
+                        </li>
+                      ))
+                    : accountStrip.accounts.map((acct) => (
+                        <li key={acct.account_id}>
+                          <button
+                            type="button"
+                            className="top-accounts-chip"
+                            onClick={() => openAccountDetails(acct.account_id)}
+                            title={`Show details for ${acct.account_name}`}
+                          >
+                            <span className="top-accounts-chip-name">{acct.account_name}</span>
+                            <span className="top-accounts-chip-amount">
+                              {formatCurrency(acct.costs?.all_total ?? 0)}
+                            </span>
+                          </button>
+                        </li>
+                      ))}
+                </ul>
               </section>
             )}
 
-            {highlights.length > 0 && (
-              <BillingHighlights
-                highlights={highlights}
-                onAskAbout={handleAskAbout}
-                compact
-              />
-            )}
+            <SummaryDashboard
+              totals={data.totals}
+              topServices={data.top_services ?? []}
+              accounts={data.accounts}
+              orgDaily={consolidatedOrgDaily}
+              dateRange={dateRange ?? ""}
+              trends={trends}
+              trendsLoading={loading && !trends}
+              period={period}
+              commitments={data.commitments ?? null}
+              tax={data.tax ?? null}
+              hideHero
+            />
 
             <SuggestionsPanel
               suggestions={suggestions}
@@ -397,6 +393,18 @@ export default function App() {
               onAskAbout={handleAskAbout}
             />
 
+            <OrgTopServicesPanel drivers={data.top_services ?? []} orgTotal={data.totals.org_total} />
+
+            {consolidatedEC2Daily.length > 0 && (
+              <section className="panel">
+                <DailyCostChart
+                  data={consolidatedEC2Daily}
+                  title="Daily EC2-Other spend (all accounts)"
+                  incompleteDays={data.incomplete_days ?? 0}
+                />
+              </section>
+            )}
+
             <div className="details-toggle-row">
               <button
                 type="button"
@@ -404,61 +412,28 @@ export default function App() {
                 aria-expanded={showDetails}
                 onClick={() => setShowDetails((v) => !v)}
               >
-                {showDetails ? "Hide details" : "Show details"}
+                {showDetails ? "Hide account details" : "Show account details"}
                 <span className="details-toggle-hint">
-                  {showDetails
-                    ? "full service breakdown, charts, accounts"
-                    : `${data.top_services?.length ?? 0} services · ${data.accounts.length} accounts`}
+                  {data.accounts.length} accounts · services, EC2-Other usage, storage inventory
                 </span>
               </button>
             </div>
 
             {showDetails && (
-              <div className="details-section">
-                <OrgTopServicesPanel
-                  drivers={data.top_services ?? []}
-                  orgTotal={data.totals.org_total}
-                />
-
-                <section className="panel">
-                  <DailyCostChart
-                    data={consolidatedOrgDaily}
-                    title="Daily organization spend (all services, usage)"
-                    seriesName="Org spend"
-                    spikes={trends?.spikes}
-                    incompleteDays={data.incomplete_days ?? 0}
-                  />
-                </section>
-
-                <section className="panel">
-                  <DailyCostChart
-                    data={consolidatedEC2Daily}
-                    title="Daily EC2-Other spend (all accounts)"
-                    incompleteDays={data.incomplete_days ?? 0}
-                  />
-                </section>
-
-                <p className="category-desc" style={{ marginBottom: "1rem" }}>
-                  Per account: top services by cost, EC2-Other usage breakdown, live storage
-                  inventory, and service drill-down. Use this to find where money goes and
-                  what to rightsize or delete.
-                </p>
-
-                <section className="account-grid">
-                  {data.accounts.map((acct) => (
-                    <AccountCard key={acct.account_id} account={acct} />
-                  ))}
-                </section>
-              </div>
+              <section className="account-grid">
+                {data.accounts.map((acct) => (
+                  <AccountCard key={acct.account_id} account={acct} />
+                ))}
+              </section>
             )}
-
-            <p className="empty" style={{ marginTop: "1.5rem" }}>
-              Last updated {new Date(data.generated_at).toLocaleString()}
-            </p>
           </>
         )}
-      </div>
-    </div>
+      </main>
+
+      <AskDrawer open={askOpen} onClose={closeAsk}>
+        <ChatStatusBanner apiOk={!!data && !error} apiError={error} />
+        <AskPanel askRequest={askRequest} onAskRequestHandled={clearAskRequest} />
+      </AskDrawer>
     </>
   );
 }

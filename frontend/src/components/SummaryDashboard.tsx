@@ -35,6 +35,8 @@ interface Props {
   period: PeriodPreset;
   commitments?: CommitmentCoverage | null;
   tax?: TaxBreakdown | null;
+  /** Hide the period/prior/sparkline hero when the page header already shows it. */
+  hideHero?: boolean;
 }
 
 const GP3_USD_PER_GIB = 0.08;
@@ -164,6 +166,7 @@ export default function SummaryDashboard({
   period,
   commitments,
   tax,
+  hideHero,
 }: Props) {
   const top = topServices.slice(0, 5);
   const unattachedGiB = totals.volume_available_gib ?? 0;
@@ -338,6 +341,7 @@ export default function SummaryDashboard({
 
   return (
     <section className="summary-dashboard" aria-label="Organization summary">
+      {!hideHero && (
       <div className="summary-hero summary-hero-compact">
         <div className="summary-hero-main">
           <p className="summary-eyebrow">Explore breakdown · {activePeriodLabel}</p>
@@ -363,6 +367,7 @@ export default function SummaryDashboard({
           </div>
         )}
       </div>
+      )}
 
       <div className="summary-columns summary-columns-3">
         <div className="summary-card">

@@ -35,7 +35,7 @@ Honest list for contributors and self-hosters. Demo/public-sharing gaps are bein
 ## Frontend
 
 - No root error boundary — an uncaught render error can white-screen the app.
-- Large JS bundle (~800 KB) — vgpu, recharts, and Ask load on first paint.
+- JS bundle is ~800 KB (~230 KB gzip) — recharts and the Ask panel load on first paint (lazy-loading is planned).
 
 ## MCP
 
