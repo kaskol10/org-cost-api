@@ -8,6 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- `openapi.yaml` now fully describes every response: 20 new schemas (cost summary, EBS volume and snapshot inventory, service detail…) replace the free-form `additionalProperties: true` placeholders, and `required` / `nullable` match what the server actually sends
+- Two contract tests keep it that way: one compares every Go response type to its schema by reflection (fields, types, required, nullable), the other validates real responses against the spec and fails on undocumented fields
+- Frontend API types are generated from the spec; `types.ts` is now aliases only
+
 - Per-integration API tokens: `api_clients` in config (Helm: `apiClients`). Each client is named in a new one-line access log (`api_request client=…`), can be revoked on its own, and has its own refresh budget. The legacy `api_token` keeps working as client "default"
 - `?refresh=1` no longer locks other clients out: the limit is one forced fetch per client per 5 minutes, and a refresh of data another client just refreshed is answered from that data (`X-Refresh-Coalesced: true`) without a new Cost Explorer call
 - CI lints and renders the Helm chart
@@ -24,6 +28,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Publish Helm chart `org-cost-api` to GHCR (`oci://ghcr.io/kaskol10/org-cost-api/charts`) on `v*` tags
 
 ### Changed
+
+- Array and map fields the spec marks required are always sent as `[]` / `{}`, never `null` (e.g. `trends.top_decreases` with no decreases used to be `null`)
 
 - Unattached EBS waste is priced per volume type (gp2, gp3, io1/io2, st1, sc1, standard list prices) instead of a flat gp3 $0.08/GiB-month, in suggestions, Ask answers, the UI and the MCP `get_waste_signals` tool. Volumes without a type breakdown still use the gp3 rate
 - Web UI and MCP prefer the server-computed fields above and fall back to the old client-side logic against older APIs

@@ -304,7 +304,7 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.WriteHeader(status)
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
-	if err := enc.Encode(v); err != nil {
+	if err := enc.Encode(normalizeJSON(v)); err != nil {
 		log.Printf("encode json: %v", err)
 	}
 }
