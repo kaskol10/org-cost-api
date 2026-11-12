@@ -8,6 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Web UI is one page: a top bar (period, refresh, **Ask**), the API's one-sentence `headline`, the budget bar, and a **cost bridge** chart showing which services moved spend from the prior period to this one (click a row to ask why). Highlights, daily chart, spikes, account movers, breakdowns and suggestions follow on the same page; per-account cards stay behind "Show account details"
+- Ask (chat) opens as a side drawer from anywhere on the page and keeps the conversation when closed
+
 - `openapi.yaml` now fully describes every response: 20 new schemas (cost summary, EBS volume and snapshot inventory, service detail…) replace the free-form `additionalProperties: true` placeholders, and `required` / `nullable` match what the server actually sends
 - Two contract tests keep it that way: one compares every Go response type to its schema by reflection (fields, types, required, nullable), the other validates real responses against the spec and fails on undocumented fields
 - Frontend API types are generated from the spec; `types.ts` is now aliases only
@@ -28,6 +31,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Publish Helm chart `org-cost-api` to GHCR (`oci://ghcr.io/kaskol10/org-cost-api/charts`) on `v*` tags
 
 ### Changed
+
+- Removed the Chat / Explore tabs and the WebGPU background (`vgpu` dependency): −128 KB JS (−41 KB gzip)
 
 - Array and map fields the spec marks required are always sent as `[]` / `{}`, never `null` (e.g. `trends.top_decreases` with no decreases used to be `null`)
 
