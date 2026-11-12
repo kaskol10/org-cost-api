@@ -8,6 +8,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Drill-down: clicking a cost-bridge row opens a breakdown of which **accounts** moved that service (no Cost Explorer calls), with an on-demand **tag** breakdown, "Ask why" and "Copy link". "Other services" lists the smaller services behind it
+- API: `ServiceTrend.accounts` — per-account change for each service, computed from the prior period's saved snapshot (no Cost Explorer calls; omitted when the prior came from Cost Explorer totals)
+- Sortable **accounts table** (spend, change, change %, share, unattached EBS $/mo); a row expands to the full account card. Replaces the account movers strip and the "Show details" grid
+- Shareable URLs: `?period=mtd&service=…&account=…` restore the view; Back/Forward step through drill-downs
+
 - Web UI is one page: a top bar (period, refresh, **Ask**), the API's one-sentence `headline`, the budget bar, and a **cost bridge** chart showing which services moved spend from the prior period to this one (click a row to ask why). Highlights, daily chart, spikes, account movers, breakdowns and suggestions follow on the same page; per-account cards stay behind "Show account details"
 - Ask (chat) opens as a side drawer from anywhere on the page and keeps the conversation when closed
 
@@ -43,6 +48,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Prod UI chat is same-origin (`VITE_CHAT_URL=same-origin`): the browser calls `/v1/chat` on the current hostname instead of a baked chat URL
 
 ### Fixed
+
+- Service trends from history snapshots no longer treat services outside the snapshot's org-level top 20 as brand new: the prior is rebuilt from the per-account service lists, like the current period
+- Headline "Biggest increase" names the largest **dollar** increase (it used `top_increases[0]`, which is ranked by percentage)
+- Demo: month-to-date prior total covered only the top services, inflating the org change; demo priors now add up across services, accounts and the org total
 
 - Multi-tenant Helm: a site on its own hostname no longer fetches another tenant’s chat URL (CORS) and no longer crashes when suggestion lists are missing (`e is not iterable`)
 

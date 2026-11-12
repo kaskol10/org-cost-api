@@ -2,6 +2,7 @@ package demo
 
 import (
 	"fmt"
+	"github.com/kaskol10/org-cost-api/backend/internal/analysis"
 	"math"
 	"sort"
 	"time"
@@ -37,12 +38,12 @@ func DefaultConfig() *appconfig.Config {
 }
 
 type accountFixture struct {
-	id      string
-	name    string
-	total   float64
+	id       string
+	name     string
+	total    float64
 	services []costexplorer.ServiceCost
-	volumes *ec2volumes.Inventory
-	snaps   *ec2snapshots.SnapshotSummary
+	volumes  *ec2volumes.Inventory
+	snaps    *ec2snapshots.SnapshotSummary
 }
 
 // Dashboard builds a rich fixture dashboard for demo mode.
@@ -245,11 +246,11 @@ func demoCommitments() *costexplorer.CommitmentCoverage {
 	riCov := 12.0
 	uncommitted := 9400.0
 	return &costexplorer.CommitmentCoverage{
-		SPCoveragePct:  &spCov,
+		SPCoveragePct:    &spCov,
 		SPUtilizationPct: &spUtil,
-		RICoveragePct:  &riCov,
-		UncommittedUSD: &uncommitted,
-		HasCommitments: true,
+		RICoveragePct:    &riCov,
+		UncommittedUSD:   &uncommitted,
+		HasCommitments:   true,
 	}
 }
 
@@ -268,9 +269,9 @@ func dailyForAccount(id string, total float64, start, end string) []costexplorer
 		out := make([]costexplorer.DailyCost, 0, days)
 		for d := 0; d < days; d++ {
 			out = append(out, costexplorer.DailyCost{
-				Date:  s.AddDate(0, 0, d).Format("2006-01-02"),
+				Date:   s.AddDate(0, 0, d).Format("2006-01-02"),
 				Amount: daily,
-				Unit:  "USD",
+				Unit:   "USD",
 			})
 		}
 		return out
@@ -301,22 +302,51 @@ func dailyForAccount(id string, total float64, start, end string) []costexplorer
 	return out
 }
 
-// PriorSnapshot builds a history snapshot for trend comparison (~8% lower than current).
+// PriorSnapshot builds a history snapshot for trend comparison, using the
+// same per-account, per-service ratios as live demo trends
+// (analysis.DemoPriorScale) so service totals, account totals and the
+// account drill-down all add up.
 func PriorSnapshot(dash *service.DashboardResponse) history.Snapshot {
-	services := make([]history.ServiceAmount, 0, len(dash.TopServices))
+	const scale = 0.92
+	byService := map[string]float64{}
+	var accounts []history.AccountAmount
 	var priorTotal float64
+	for i, acct := range dash.Accounts {
+		if acct.Error != "" || acct.Costs == nil {
+			continue
+		}
+		as := history.AccountAmount{AccountID: acct.AccountID, AccountName: acct.AccountName}
+		var listed float64
+		for j, s := range acct.Costs.ByService {
+			prior := s.Amount * analysis.DemoPriorScale(i, j)
+			as.Services = append(as.Services, history.ServiceAmount{Service: s.Service, Amount: prior})
+			byService[s.Service] += prior
+			as.AllTotal += prior
+			listed += s.Amount
+		}
+		as.AllTotal += (acct.Costs.AllTotal - listed) * scale
+		priorTotal += as.AllTotal
+		accounts = append(accounts, as)
+	}
+	services := make([]history.ServiceAmount, 0, len(dash.TopServices))
 	for _, s := range dash.TopServices {
-		prior := s.Amount * 0.92
+		prior, ok := byService[s.Service]
+		if !ok {
+			prior = s.Amount * scale
+		}
 		services = append(services, history.ServiceAmount{Service: s.Service, Amount: prior})
-		priorTotal += prior
+	}
+	if priorTotal < 0.01 {
+		priorTotal = dash.Totals.OrgTotal * scale
 	}
 	priorStart, priorEnd := priorPeriod(dash.Start, dash.End)
 	return history.Snapshot{
 		SavedAt:     time.Now().UTC().AddDate(0, 0, -35).Format(time.RFC3339),
 		PeriodStart: priorStart,
 		PeriodEnd:   priorEnd,
-		OrgTotal:    dash.Totals.OrgTotal * 0.92,
+		OrgTotal:    priorTotal,
 		Services:    services,
+		Accounts:    accounts,
 	}
 }
 

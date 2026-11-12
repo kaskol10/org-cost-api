@@ -1,6 +1,10 @@
 package analysis
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/kaskol10/org-cost-api/backend/internal/history"
+)
 
 func TestBuildTrendsSpikeDetection(t *testing.T) {
 	dash := DashboardView{
@@ -129,5 +133,22 @@ func TestBuildTrendsAccountMinUSDThreshold(t *testing.T) {
 	}
 	if len(resp.TopAccountIncreases) != 0 {
 		t.Fatalf("expected no top account increases for +$10, got %+v", resp.TopAccountIncreases)
+	}
+}
+
+func TestPriorMapFromSnapshotUsesAccountServices(t *testing.T) {
+	snap := &history.Snapshot{
+		OrgTotal: 1000,
+		// Org-level list is capped at the top services…
+		Services: []history.ServiceAmount{{Service: "EC2", Amount: 900}},
+		// …but account lists carry every service.
+		Accounts: []history.AccountAmount{
+			{AccountID: "1", Services: []history.ServiceAmount{{Service: "EC2", Amount: 500}, {Service: "Glue", Amount: 60}}},
+			{AccountID: "2", Services: []history.ServiceAmount{{Service: "EC2", Amount: 400}, {Service: "Glue", Amount: 40}}},
+		},
+	}
+	got, total := PriorMapFromSnapshot(snap)
+	if total != 1000 || got["EC2"] != 900 || got["Glue"] != 100 {
+		t.Fatalf("prior map = %v total %v; want EC2=900 Glue=100 total=1000", got, total)
 	}
 }

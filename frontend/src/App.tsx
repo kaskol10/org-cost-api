@@ -1,20 +1,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fetchMeta, fetchReport, fetchReportFresh, fetchExplainedSuggestions, fetchChatHealth, chatEnabled, ApiError, type PeriodPreset } from "./api";
-import AccountCard from "./components/AccountCard";
+import AccountsTable from "./components/AccountsTable";
 import ChatStatusBanner from "./components/ChatStatusBanner";
 import AskPanel, { type AskRequest } from "./components/AskPanel";
 import BillingHighlights from "./components/BillingHighlights";
 import AskDrawer from "./components/AskDrawer";
 import BudgetBar from "./components/BudgetBar";
 import CostBridge from "./components/CostBridge";
+import ServiceDrilldown from "./components/ServiceDrilldown";
 import DailyCostChart from "./components/DailyCostChart";
 import OrgTopServicesPanel from "./components/OrgTopServicesPanel";
 import SpikesPanel from "./components/SpikesPanel";
 import SuggestionsPanel from "./components/SuggestionsPanel";
 import SummaryDashboard from "./components/SummaryDashboard";
 import { buildBillingHighlights, fromServerHighlights } from "./utils/highlights";
-import { formatCurrency, formatSignedCurrency } from "./utils/format";
-import { periodLabel } from "./utils/periodLabels";
+import { formatCurrency } from "./utils/format";
+import { periodLabel, priorCompareLabel } from "./utils/periodLabels";
+import { bridgeServices, buildBridge } from "./utils/bridge";
+import { OTHER_SERVICES, useUrlState } from "./utils/urlState";
 import type { BudgetStatus, DashboardResponse, DailyCost, ForecastResult, ReportResponse, ServerHighlight, SuggestionsResponse, TrendsResponse } from "./types";
 
 function mergeDaily(
@@ -51,10 +54,12 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [authError, setAuthError] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [showDetails, setShowDetails] = useState(false);
   const [demoMode, setDemoMode] = useState(false);
   const [demoBannerDismissed, setDemoBannerDismissed] = useState(false);
-  const [period, setPeriod] = useState<PeriodPreset>("30d");
+  // Period, selected bridge row and expanded account live in the URL so any view can be shared.
+  const [urlState, setUrlState] = useUrlState();
+  const period: PeriodPreset = urlState.period;
+  const setPeriod = useCallback((p: PeriodPreset) => setUrlState({ period: p }), [setUrlState]);
 
   useEffect(() => {
     fetchMeta()
@@ -159,28 +164,24 @@ export default function App() {
     [serverHighlights, data, trends, suggestions, period, forecast, budgets]
   );
 
-  const topAccountsBySpend = useMemo(() => {
-    if (!Array.isArray(data?.accounts) || !data.accounts.length) return [];
-    return [...data.accounts]
-      .filter((a) => a.costs && !a.error)
-      .sort((a, b) => (b.costs?.all_total ?? 0) - (a.costs?.all_total ?? 0))
-      .slice(0, 5);
-  }, [data?.accounts]);
+  const bridgeSteps = useMemo(() => buildBridge(trends), [trends]);
 
-  const accountStrip = useMemo(() => {
-    const increases = Array.isArray(trends?.top_account_increases)
-      ? trends.top_account_increases
-      : [];
-    const decreases = Array.isArray(trends?.top_account_decreases)
-      ? trends.top_account_decreases
-      : [];
-    const hasMovers =
-      !!trends?.prior_source && (increases.length > 0 || decreases.length > 0);
-    if (hasMovers) {
-      return { mode: "movers" as const, increases, decreases };
+  // Drill-down target for the selected bridge row.
+  const drill = useMemo(() => {
+    const sel = urlState.service;
+    if (!sel || !trends) return null;
+    if (sel === OTHER_SERVICES) {
+      const shown = bridgeServices(bridgeSteps);
+      const otherStep = bridgeSteps?.find((st) => st.key === "other");
+      const otherTrends = (trends.service_trends ?? [])
+        .filter((t) => !shown.has(t.service) && Math.abs(t.change_usd) >= 0.5)
+        .sort((a, b) => Math.abs(b.change_usd) - Math.abs(a.change_usd));
+      const listed = otherTrends.reduce((sum, t) => sum + t.change_usd, 0);
+      return { trend: null, otherTrends, unlistedChange: (otherStep?.value ?? listed) - listed };
     }
-    return { mode: "spend" as const, accounts: topAccountsBySpend };
-  }, [trends, topAccountsBySpend]);
+    const trend = (trends.service_trends ?? []).find((t) => t.service === sel);
+    return trend ? { trend, otherTrends: [], unlistedChange: 0 } : null;
+  }, [urlState.service, trends, bridgeSteps]);
 
   const handleAskAbout = useCallback((question: string) => {
     setAskOpen(true);
@@ -193,15 +194,6 @@ export default function App() {
   }, []);
 
   const closeAsk = useCallback(() => setAskOpen(false), []);
-
-  const openAccountDetails = useCallback((accountId: string) => {
-    setShowDetails(true);
-    window.setTimeout(() => {
-      document
-        .getElementById(`account-${accountId}`)
-        ?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 50);
-  }, []);
 
   const headlineText =
     headline ??
@@ -295,11 +287,38 @@ export default function App() {
           <>
             {data.cur_note && <p className="page-note">{data.cur_note}</p>}
 
-            <CostBridge trends={trends} period={period} onAskAbout={handleAskAbout} />
+            <CostBridge
+              trends={trends}
+              period={period}
+              selected={urlState.service}
+              onSelect={(service) => setUrlState({ service })}
+            />
+
+            {drill && (
+              <ServiceDrilldown
+                trend={drill.trend}
+                otherTrends={drill.otherTrends}
+                unlistedChange={drill.unlistedChange}
+                compareLabel={priorCompareLabel(period)}
+                onClose={() => setUrlState({ service: null })}
+                onAskAbout={handleAskAbout}
+                onSelectAccount={(account) => setUrlState({ account })}
+                onSelectService={(service) => setUrlState({ service })}
+              />
+            )}
 
             {highlights.length > 0 && (
               <BillingHighlights highlights={highlights} onAskAbout={handleAskAbout} compact />
             )}
+
+            <AccountsTable
+              accounts={data.accounts}
+              accountTrends={trends?.account_trends}
+              orgTotal={data.totals.org_total}
+              compareLabel={priorCompareLabel(period)}
+              selectedId={urlState.account}
+              onSelect={(account) => setUrlState({ account })}
+            />
 
             <section className="panel">
               <DailyCostChart
@@ -318,58 +337,6 @@ export default function App() {
                 spikeMeta={trends.spike_meta}
                 onAskAbout={handleAskAbout}
               />
-            )}
-
-            {(accountStrip.mode === "movers" ||
-              (accountStrip.mode === "spend" && accountStrip.accounts.length > 0)) && (
-              <section
-                className="top-accounts-strip"
-                aria-label={
-                  accountStrip.mode === "movers"
-                    ? "Accounts with biggest spend changes"
-                    : "Top accounts by spend"
-                }
-              >
-                <h2 className="top-accounts-strip-title">
-                  {accountStrip.mode === "movers" ? "Account movers" : "Top accounts by spend"}
-                </h2>
-                <ul className="top-accounts-strip-list">
-                  {accountStrip.mode === "movers"
-                    ? [
-                        ...accountStrip.increases.map((t) => ({ t, up: true })),
-                        ...accountStrip.decreases.map((t) => ({ t, up: false })),
-                      ].map(({ t, up }) => (
-                        <li key={`${up ? "up" : "down"}-${t.account_id}`}>
-                          <button
-                            type="button"
-                            className={`top-accounts-chip ${up ? "top-accounts-chip-up" : "top-accounts-chip-down"}`}
-                            onClick={() => openAccountDetails(t.account_id)}
-                            title={`Show details for ${t.account_name}`}
-                          >
-                            <span className="top-accounts-chip-name">{t.account_name}</span>
-                            <span className={`top-accounts-chip-amount ${up ? "up" : "down"}`}>
-                              {formatSignedCurrency(t.change_usd)}
-                            </span>
-                          </button>
-                        </li>
-                      ))
-                    : accountStrip.accounts.map((acct) => (
-                        <li key={acct.account_id}>
-                          <button
-                            type="button"
-                            className="top-accounts-chip"
-                            onClick={() => openAccountDetails(acct.account_id)}
-                            title={`Show details for ${acct.account_name}`}
-                          >
-                            <span className="top-accounts-chip-name">{acct.account_name}</span>
-                            <span className="top-accounts-chip-amount">
-                              {formatCurrency(acct.costs?.all_total ?? 0)}
-                            </span>
-                          </button>
-                        </li>
-                      ))}
-                </ul>
-              </section>
             )}
 
             <SummaryDashboard
@@ -405,27 +372,6 @@ export default function App() {
               </section>
             )}
 
-            <div className="details-toggle-row">
-              <button
-                type="button"
-                className="btn btn-ghost"
-                aria-expanded={showDetails}
-                onClick={() => setShowDetails((v) => !v)}
-              >
-                {showDetails ? "Hide account details" : "Show account details"}
-                <span className="details-toggle-hint">
-                  {data.accounts.length} accounts · services, EC2-Other usage, storage inventory
-                </span>
-              </button>
-            </div>
-
-            {showDetails && (
-              <section className="account-grid">
-                {data.accounts.map((acct) => (
-                  <AccountCard key={acct.account_id} account={acct} />
-                ))}
-              </section>
-            )}
           </>
         )}
       </main>

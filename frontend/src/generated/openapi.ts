@@ -754,6 +754,16 @@ export interface components {
             /** @enum {string} */
             direction: "up" | "down" | "new" | "stable";
             current_share_pct?: number;
+            /** @description Accounts that drove this service's change, largest first (max 5). Present when the prior period has a per-account breakdown (history snapshots, demo); otherwise use /api/v1/service-tag-delta. Costs no Cost Explorer calls. */
+            accounts?: components["schemas"]["ServiceAccountChange"][];
+        };
+        /** @description How one account's spend on a service moved between periods. */
+        ServiceAccountChange: {
+            account_id: string;
+            account_name: string;
+            current_usd: number;
+            prior_usd: number;
+            change_usd: number;
         };
         AccountTrend: {
             account_id: string;

@@ -91,3 +91,15 @@ func TestBuildHeadline(t *testing.T) {
 		t.Fatalf("minimal headline = %q", got)
 	}
 }
+
+func TestBuildHeadlineBiggestIncreaseIsInDollars(t *testing.T) {
+	in := sampleInput()
+	small := ServiceTrend{Service: "RDS", DisplayName: "RDS", PriorUSD: 7820, CurrentUSD: 9200, ChangeUSD: 1380, ChangePercent: 17.6}
+	big := ServiceTrend{Service: "EC2", DisplayName: "EC2 compute", PriorUSD: 21970, CurrentUSD: 24200, ChangeUSD: 2230, ChangePercent: 10.2}
+	in.Trends.ServiceTrends = []ServiceTrend{small, big}
+	in.Trends.TopIncreases = []ServiceTrend{small, big} // ranked by % like the API
+	got := BuildHeadline(in)
+	if !strings.HasSuffix(got, "Biggest increase: EC2 compute (+$2,230.00).") {
+		t.Fatalf("headline should name the largest dollar increase, got %q", got)
+	}
+}

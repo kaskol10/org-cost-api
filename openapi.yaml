@@ -738,6 +738,26 @@ components:
           enum: [up, down, new, stable]
         current_share_pct:
           type: number
+        accounts:
+          type: array
+          description: Accounts that drove this service's change, largest first (max 5). Present when the prior period has a per-account breakdown (history snapshots, demo); otherwise use /api/v1/service-tag-delta. Costs no Cost Explorer calls.
+          items:
+            $ref: '#/components/schemas/ServiceAccountChange'
+    ServiceAccountChange:
+      type: object
+      description: How one account's spend on a service moved between periods.
+      required: [account_id, account_name, current_usd, prior_usd, change_usd]
+      properties:
+        account_id:
+          type: string
+        account_name:
+          type: string
+        current_usd:
+          type: number
+        prior_usd:
+          type: number
+        change_usd:
+          type: number
     AccountTrend:
       type: object
       required: [account_id, account_name, current_usd, prior_usd, change_usd, change_percent, direction]

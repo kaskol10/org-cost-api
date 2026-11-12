@@ -70,3 +70,8 @@ export function bridgeDomain(steps: BridgeStep[]): [number, number] {
   const pad = Math.max((hi - lo) * 0.12, Math.abs(hi) * 0.002, 1);
   return [lo - pad, hi + pad];
 }
+
+/** Services that got their own bridge row (the rest are in "Other services"). */
+export function bridgeServices(steps: BridgeStep[] | null): Set<string> {
+  return new Set((steps ?? []).filter((s) => s.service).map((s) => s.service!));
+}
