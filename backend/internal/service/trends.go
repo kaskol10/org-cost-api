@@ -104,6 +104,7 @@ func (a *Aggregator) trendsFromView(ctx context.Context, dash *DashboardResponse
 		ceCalls       int
 		historyNote   string
 		snapCount     int
+		priorAcctSvc  analysis.PriorAccountServices
 	)
 
 	spikeParams := analysis.SpikeParams{
@@ -119,6 +120,7 @@ func (a *Aggregator) trendsFromView(ctx context.Context, dash *DashboardResponse
 
 	finish := func() *analysis.TrendsResponse {
 		resp := analysis.BuildTrends(view, priorMap, priorAccounts, priorTotal, source, ceCalls, historyNote, snapCount)
+		analysis.AttachServiceAccounts(resp, view, priorAcctSvc)
 		resp.Period = string(mode)
 		resp.PriorPeriod = analysis.PeriodSummary{
 			Start: priorStart,
@@ -147,6 +149,7 @@ func (a *Aggregator) trendsFromView(ctx context.Context, dash *DashboardResponse
 			if snap, err := a.history.FindPriorSnapshot(priorEndTime, 5); err == nil && snap != nil {
 				priorMap, priorTotal = analysis.PriorMapFromSnapshot(snap)
 				priorAccounts = analysis.PriorAccountMapFromSnapshot(snap)
+				priorAcctSvc = analysis.PriorAccountServicesFromSnapshot(snap)
 				source = "history_snapshot"
 				historyNote = fmt.Sprintf(
 					"Prior period from snapshot saved %s (period %s to %s). No Cost Explorer calls.",
@@ -236,6 +239,7 @@ func (a *Aggregator) trendsFromView(ctx context.Context, dash *DashboardResponse
 		}
 	} else if a.demoMode {
 		priorMap, priorAccounts, priorTotal = demoPriorFromView(view)
+		priorAcctSvc = demoPriorAccountServices(view)
 		source = "demo_fixture"
 		if mode == appconfig.PeriodMTD {
 			historyNote = fmt.Sprintf(
@@ -256,27 +260,65 @@ func (a *Aggregator) trendsFromView(ctx context.Context, dash *DashboardResponse
 	return finish(), nil
 }
 
-// demoPriorFromView builds a synthetic prior (~8% lower) so MTD/demo trends stay comparable.
+// demoPriorFromView builds a synthetic prior so MTD/demo trends stay
+// comparable. Per-service priors are the sum of the per-account priors from
+// demoPriorAccountServices, so the account drill-down adds up.
 func demoPriorFromView(view analysis.DashboardView) (map[string]float64, map[string]float64, float64) {
 	const scale = 0.92
+	acctSvc := demoPriorAccountServices(view)
 	out := make(map[string]float64, len(view.TopServices))
-	var total float64
 	for _, s := range view.TopServices {
-		prior := s.Amount * scale
-		out[s.Service] = prior
-		total += prior
+		out[s.Service] = s.Amount * scale
+	}
+	byService := map[string]float64{}
+	var accountServicesCurrent float64
+	for _, acct := range view.Accounts {
+		for _, s := range acct.ByService {
+			accountServicesCurrent += s.Amount
+		}
+		for svc, amt := range acctSvc[acct.AccountID] {
+			byService[svc] += amt
+		}
+	}
+	for svc, amt := range byService {
+		out[svc] = amt
 	}
 	accounts := make(map[string]float64, len(view.Accounts))
+	var total float64
 	for _, acct := range view.Accounts {
 		if acct.AccountID == "" {
 			continue
 		}
-		accounts[acct.AccountID] = acct.AllTotal * scale
+		var prior float64
+		for _, amt := range acctSvc[acct.AccountID] {
+			prior += amt
+		}
+		// Spend outside the account's listed services moves by the base scale.
+		var listed float64
+		for _, s := range acct.ByService {
+			listed += s.Amount
+		}
+		prior += (acct.AllTotal - listed) * scale
+		accounts[acct.AccountID] = prior
+		total += prior
 	}
 	if total < 0.01 && view.OrgTotal > 0 {
 		total = view.OrgTotal * scale
 	}
 	return out, accounts, total
+}
+
+// demoPriorAccountServices is the per-account, per-service demo prior.
+func demoPriorAccountServices(view analysis.DashboardView) analysis.PriorAccountServices {
+	out := make(analysis.PriorAccountServices, len(view.Accounts))
+	for i, acct := range view.Accounts {
+		m := make(map[string]float64, len(acct.ByService))
+		for j, s := range acct.ByService {
+			m[s.Service] += s.Amount * analysis.DemoPriorScale(i, j)
+		}
+		out[acct.AccountID] = m
+	}
+	return out
 }
 
 func toDashboardView(dash *DashboardResponse) analysis.DashboardView {

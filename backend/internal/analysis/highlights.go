@@ -183,8 +183,7 @@ func BuildHeadline(in HighlightInput) string {
 		}
 	}
 	b.WriteString(".")
-	if in.Trends != nil && len(in.Trends.TopIncreases) > 0 && in.Trends.TopIncreases[0].ChangeUSD > 0 {
-		t := in.Trends.TopIncreases[0]
+	if t := largestIncreaseUSD(in.Trends); t != nil {
 		name := t.DisplayName
 		if name == "" {
 			name = ServiceShortName(t.Service)
@@ -192,6 +191,28 @@ func BuildHeadline(in HighlightInput) string {
 		fmt.Fprintf(&b, " Biggest increase: %s (%s).", name, formatSignedUSD(t.ChangeUSD))
 	}
 	return b.String()
+}
+
+// largestIncreaseUSD is the service whose spend rose the most in dollars.
+// (TopIncreases is ranked by percentage, which suits "biggest spike" but not
+// "biggest increase".)
+func largestIncreaseUSD(t *TrendsResponse) *ServiceTrend {
+	if t == nil {
+		return nil
+	}
+	var best *ServiceTrend
+	consider := func(list []ServiceTrend) {
+		for i := range list {
+			if list[i].ChangeUSD > 0 && (best == nil || list[i].ChangeUSD > best.ChangeUSD) {
+				best = &list[i]
+			}
+		}
+	}
+	consider(t.ServiceTrends)
+	if best == nil {
+		consider(t.TopIncreases)
+	}
+	return best
 }
 
 func primaryBudget(budgets []*BudgetStatus) *BudgetStatus {

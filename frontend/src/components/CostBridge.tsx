@@ -4,11 +4,15 @@ import { bridgeDomain, buildBridge, type BridgeStep } from "../utils/bridge";
 import { formatCurrency, formatSignedCurrency } from "../utils/format";
 import { priorCompareLabel } from "../utils/periodLabels";
 import type { PeriodPreset } from "../api";
+import { OTHER_SERVICES } from "../utils/urlState";
 
 interface Props {
   trends: TrendsResponse | null;
   period: PeriodPreset;
-  onAskAbout?: (question: string) => void;
+  /** Selected row: a service name, or OTHER_SERVICES. */
+  selected?: string | null;
+  /** Called with the row's service (or OTHER_SERVICES); clicking the selected row again passes null. */
+  onSelect?: (service: string | null) => void;
 }
 
 // Geometry in CSS pixels: the SVG is drawn at its container's real width so
@@ -43,12 +47,9 @@ function compactUSD(v: number): string {
   return formatCurrency(v);
 }
 
-function askFor(step: BridgeStep, compare: string): string {
-  const moved = formatSignedCurrency(step.value);
-  if (step.key === "other") {
-    return `Which smaller services account for the ${moved} change in "other services" ${compare}?`;
-  }
-  return `What drove the ${moved} change in ${step.label} spend ${compare}? Break it down by account and usage type.`;
+function stepId(step: BridgeStep): string | null {
+  if (step.kind !== "delta") return null;
+  return step.key === "other" ? OTHER_SERVICES : step.service ?? null;
 }
 
 /**
@@ -57,7 +58,7 @@ function askFor(step: BridgeStep, compare: string): string {
  * running total spans (it does not start at zero), so the period totals are
  * drawn as markers rather than bars and the scale start is labelled.
  */
-export default function CostBridge({ trends, period, onAskAbout }: Props) {
+export default function CostBridge({ trends, period, selected = null, onSelect }: Props) {
   const steps = useMemo(() => buildBridge(trends), [trends]);
   const [hover, setHover] = useState<string | null>(null);
   const [wrapRef, measured] = useContainerWidth<HTMLDivElement>(760);
@@ -116,7 +117,10 @@ export default function CostBridge({ trends, period, onAskAbout }: Props) {
         {steps.map((s, i) => {
           const y = TOP + i * ROW_H;
           const cy = y + ROW_H / 2;
-          const interactive = s.kind === "delta" && !!onAskAbout;
+          const id = stepId(s);
+          const interactive = !!id && !!onSelect;
+          const isSelected = !!id && id === selected;
+          const choose = () => onSelect!(isSelected ? null : id);
           const isUp = s.value > 0;
           const x0 = x(Math.min(s.start, s.end));
           const x1 = x(Math.max(s.start, s.end));
@@ -127,25 +131,26 @@ export default function CostBridge({ trends, period, onAskAbout }: Props) {
           return (
             <g
               key={s.key}
-              className={`cost-bridge-row${hover === s.key ? " is-hover" : ""}${interactive ? " is-interactive" : ""}`}
+              className={`cost-bridge-row${hover === s.key ? " is-hover" : ""}${interactive ? " is-interactive" : ""}${isSelected ? " is-selected" : ""}`}
               onMouseEnter={() => setHover(s.key)}
               onMouseLeave={() => setHover(null)}
-              onClick={interactive ? () => onAskAbout!(askFor(s, compare)) : undefined}
+              onClick={interactive ? choose : undefined}
               onKeyDown={
                 interactive
                   ? (e) => {
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault();
-                        onAskAbout!(askFor(s, compare));
+                        choose();
                       }
                     }
                   : undefined
               }
               tabIndex={interactive ? 0 : undefined}
               role={interactive ? "button" : undefined}
-              aria-label={interactive ? `${tip}. Ask why.` : undefined}
+              aria-pressed={interactive ? isSelected : undefined}
+              aria-label={interactive ? `${tip}. Show breakdown.` : undefined}
             >
-              <title>{interactive ? `${tip} — click to ask why` : tip}</title>
+              <title>{interactive ? `${tip} — click for the breakdown` : tip}</title>
               {/* Full-row hit target, wider than the mark. */}
               <rect x={0} y={y} width={W} height={ROW_H} className="cost-bridge-hit" />
               <text x={0} y={cy} dy="0.35em" className={s.kind === "total" ? "cost-bridge-label is-total" : "cost-bridge-label"}>
@@ -190,7 +195,7 @@ export default function CostBridge({ trends, period, onAskAbout }: Props) {
         </span>
         <span className="cost-bridge-note">
           Scale runs {compactUSD(lo)}–{compactUSD(hi)}, not from $0.
-          {onAskAbout ? " Click a row to ask why it moved." : ""}
+          {onSelect ? " Click a row for the breakdown by account and tag." : ""}
         </span>
       </div>
 

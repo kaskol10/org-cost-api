@@ -2656,3 +2656,276 @@ body {
     margin-left: 0;
   }
 }
+
+/* —— Drill-down —— */
+.cost-bridge-row.is-selected .cost-bridge-hit {
+  fill: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.cost-bridge-row.is-selected .cost-bridge-label {
+  fill: var(--text);
+  font-weight: 600;
+}
+
+.drilldown {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+
+.drilldown-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.5rem 1rem;
+}
+
+.panel.drilldown h2 {
+  margin: 0;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 1.15rem;
+  color: var(--text);
+}
+
+.drilldown-sub {
+  margin: 0.25rem 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.drilldown-actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.drilldown-actions .btn {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.85rem;
+}
+
+.drilldown-h3 {
+  margin: 1.1rem 0 0.4rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.drilldown-empty {
+  margin: 0.25rem 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.drilldown-hint {
+  font-size: 0.78rem;
+}
+
+.drill-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.drill-row {
+  display: grid;
+  grid-template-columns: minmax(7rem, 1.2fr) 2fr minmax(9rem, 1fr);
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.35rem 0.4rem;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  text-align: left;
+}
+
+.drill-row.is-button {
+  cursor: pointer;
+}
+
+.drill-row.is-button:hover,
+.drill-row.is-button:focus-visible {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  outline: none;
+}
+
+.drill-row-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drill-row-bar {
+  position: relative;
+  height: 12px;
+}
+
+.drill-row-axis {
+  position: absolute;
+  left: 50%;
+  top: -3px;
+  bottom: -3px;
+  width: 1px;
+  background: var(--border);
+}
+
+.drill-row-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 3px;
+  min-width: 2px;
+}
+
+.drill-row-fill.is-up {
+  background: var(--delta-up);
+}
+
+.drill-row-fill.is-down {
+  background: var(--delta-down);
+}
+
+.drill-row-value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.drill-row-detail {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+/* —— Accounts table —— */
+.accounts-table-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.panel.accounts-table-panel h2 {
+  margin: 0;
+}
+
+.accounts-table-sub {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.accounts-table-scroll {
+  overflow-x: auto;
+}
+
+.accounts-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.accounts-table th,
+.accounts-table td {
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.accounts-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.accounts-table thead th {
+  font-weight: 500;
+  color: var(--muted);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.th-sort {
+  font: inherit;
+  color: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+.accounts-table thead th[aria-sort="ascending"],
+.accounts-table thead th[aria-sort="descending"] {
+  color: var(--text);
+}
+
+.th-sort-icon {
+  display: inline-block;
+  width: 1em;
+  margin-left: 0.2em;
+  font-size: 0.7em;
+}
+
+.accounts-row th {
+  font-weight: 500;
+}
+
+.accounts-row-toggle {
+  font: inherit;
+  color: var(--text);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  display: inline-flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.accounts-row-caret {
+  color: var(--muted);
+  width: 0.8em;
+}
+
+.accounts-row:hover {
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+}
+
+.accounts-row.is-open {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.accounts-row-error {
+  margin-left: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--danger);
+}
+
+.accounts-detail-row > td {
+  padding: 0.75rem 0 1rem;
+  white-space: normal;
+}
+
+@media (max-width: 560px) {
+  .drill-row {
+    grid-template-columns: minmax(5rem, 1fr) 1.2fr minmax(6.5rem, 1fr);
+    gap: 0.4rem;
+  }
+}
+
+.drill-rows {
+  max-width: 52rem;
+}
+
+.drill-rows:not(.is-diverging) .drill-row-axis {
+  left: 0;
+}

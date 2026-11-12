@@ -21,6 +21,10 @@ type ServiceTrend struct {
 	ChangePercent   float64 `json:"change_percent"`
 	Direction       string  `json:"direction"` // up, down, new, stable
 	CurrentSharePct float64 `json:"current_share_pct,omitempty"`
+	// Accounts that drove this service's change (largest first, max 5).
+	// Present when the prior period has a per-account breakdown (history
+	// snapshots, demo); otherwise use /service-tag-delta.
+	Accounts []ServiceAccountChange `json:"accounts,omitempty"`
 }
 
 // AccountTrend is period-over-period change for one linked account.
@@ -262,10 +266,26 @@ func accountNamesFromDashboard(dash DashboardView) map[string]string {
 	return out
 }
 
+// PriorMapFromSnapshot returns prior per-service spend and the org total.
+// It mirrors serviceMapFromDashboard: org-level top services first, then the
+// per-account service lists (which cover every service, not just the top
+// 20) override them. Using only the top-20 list made services ranked lower
+// look brand new in the current period.
 func PriorMapFromSnapshot(snap *history.Snapshot) (map[string]float64, float64) {
 	out := make(map[string]float64, len(snap.Services))
 	for _, s := range snap.Services {
 		out[s.Service] = s.Amount
+	}
+	agg := make(map[string]float64)
+	for _, a := range snap.Accounts {
+		for _, s := range a.Services {
+			if s.Amount > 0 {
+				agg[s.Service] += s.Amount
+			}
+		}
+	}
+	for svc, amt := range agg {
+		out[svc] = amt
 	}
 	return out, snap.OrgTotal
 }
